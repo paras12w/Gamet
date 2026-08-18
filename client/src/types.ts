@@ -1,0 +1,74 @@
+export type CellType = "empty" | "castle" | "hq";
+
+export interface Cell {
+  x: number;
+  y: number;
+  type: CellType;
+  owner: string | null;
+}
+
+export interface Battle {
+  id: string;
+  guildA: string;
+  guildB: string;
+  cellA: string;
+  cellB: string;
+  createdRound: number;
+}
+
+export type RoundOutcome =
+  | "expanded"
+  | "no_change"
+  | "battle_won"
+  | "battle_lost"
+  | "battle_tied"
+  | "battle_forfeit"
+  | "no_proposal"
+  | "takeover_win"
+  | "takeover_lost";
+
+export interface RoundResultEntry {
+  guildId: string;
+  guildName: string;
+  ticker: string | null;
+  startPrice: number | null;
+  endPrice: number | null;
+  pctChange: number | null;
+  outcome: RoundOutcome;
+}
+
+export interface PublicGuild {
+  id: string;
+  name: string;
+  leaderUsername: string;
+  members: string[];
+  color: string;
+  tokens: number;
+  hq: string;
+  squareCount: number;
+  squares: string[];
+  hasProposal: boolean;
+  alive: boolean;
+  streaks: Record<string, number>;
+}
+
+export interface GameStateSnapshot {
+  gridSize: number;
+  cells: Cell[];
+  guilds: PublicGuild[];
+  battles: Battle[];
+  roundNumber: number;
+  sessionNumber: number;
+  sessionRounds: number;
+  roundStartedAt: number;
+  roundEndsAt: number;
+  marketOpen: boolean;
+  lastRoundResults: RoundResultEntry[];
+  lastSessionWinner: { guildId: string; guildName: string } | null;
+}
+
+export interface Identity {
+  username: string;
+  guildId: string | null;
+  leaderSecret: string | null;
+}

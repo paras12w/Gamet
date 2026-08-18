@@ -1,0 +1,17 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Railway injects PORT automatically; the app already reads it (see
+# server/src/config.ts). Everything else in server/.env.example is optional
+# - set FINNHUB_API_KEY as a Railway variable if you have one.
+#
+# The sqlite file at DB_PATH lives on the container's local disk, which is
+# wiped on every redeploy. Attach a Railway volume mounted at /app/data to
+# persist guild identities/tokens/session history across deploys.

@@ -75,6 +75,29 @@ only open ~6.5 hours a day on weekdays. So:
 - A ticker has to resolve to a real symbol (live quote or a curated
   known-ticker fallback) to be callable; nonsense tickers are rejected.
 
+## Deploying (Railway)
+
+The server and client build into a single deployable process — the Express
+server serves the built client as static files and answers `/api` + `/ws`
+on the same port, so one Railway service is enough.
+
+1. Push this repo to GitHub (or connect the repo directly) and create a new
+   Railway project from it. Railway auto-detects the root `Dockerfile` and
+   `railway.toml`.
+2. Optionally set `FINNHUB_API_KEY` as a Railway variable for higher-quality
+   live quotes (see `server/.env.example` for every other tunable). `PORT`
+   is injected by Railway automatically - don't set it yourself.
+3. By default the SQLite file (guild identities/tokens/session history)
+   lives on the container's local disk, which is wiped on every redeploy.
+   To keep that data across deploys, attach a Railway volume mounted at
+   `/app/data` (the image already points `DB_PATH` there).
+4. Deploy. Railway builds the Docker image (`npm run build` for both
+   workspaces, multi-stage so the final image doesn't carry build tools)
+   and runs `node server/dist/index.js`.
+
+You can also build/run the image locally to sanity-check it: `docker build
+-t gamet . && docker run -p 4000:4000 gamet`.
+
 ## Architecture
 
 ```

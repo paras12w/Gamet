@@ -13,6 +13,17 @@ export const CONFIG = {
   // Neutral castle buff fires every N rounds (spec: every 2 rounds / 6 min).
   CASTLE_BUFF_EVERY_N_ROUNDS: Number(process.env.CASTLE_BUFF_EVERY_N_ROUNDS ?? 2),
 
+  // Holding an "exchange" castle grants silver on the buff tick instead of
+  // auto-claiming an adjacent field, same cadence as the other resources.
+  EXCHANGE_SILVER_BUFF: Number(process.env.EXCHANGE_SILVER_BUFF ?? 5),
+
+  // Silver cost to reveal a rival guild's locked-in call for the round.
+  SCOUT_COST: Number(process.env.SCOUT_COST ?? 5),
+
+  // Rounds a leader can go without a successful call before the guild is
+  // marked leaderless and any existing member can claim leadership.
+  LEADER_INACTIVITY_ROUNDS: Number(process.env.LEADER_INACTIVITY_ROUNDS ?? 10),
+
   // Consecutive battle wins against the same guild that trigger a full takeover.
   TAKEOVER_STREAK: Number(process.env.TAKEOVER_STREAK ?? 2),
 
@@ -57,6 +68,16 @@ export const CONFIG = {
   // How many recently-contested cells the territory heatmap remembers.
   // Position in the list (not a timestamp) drives its recency/intensity.
   RECENT_BATTLE_CELLS_LIMIT: Number(process.env.RECENT_BATTLE_CELLS_LIMIT ?? 80),
+
+  // General API rate limit: requests per window, per IP.
+  RATE_LIMIT_WINDOW_MS: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 10_000),
+  RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX ?? 60),
+
+  // Tighter limits on spam-prone actions (guild creation, chat posting).
+  CREATE_GUILD_RATE_WINDOW_MS: Number(process.env.CREATE_GUILD_RATE_WINDOW_MS ?? 10 * 60 * 1000),
+  CREATE_GUILD_RATE_MAX: Number(process.env.CREATE_GUILD_RATE_MAX ?? 5),
+  CHAT_RATE_WINDOW_MS: Number(process.env.CHAT_RATE_WINDOW_MS ?? 10_000),
+  CHAT_RATE_MAX: Number(process.env.CHAT_RATE_MAX ?? 10),
 };
 
 // Reserved chat channel id for the realm-wide chat, open to everyone

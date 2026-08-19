@@ -8,7 +8,21 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
             <span className="rules-item__icon">📜</span>
             <div>
               <h3>Call your stock</h3>
-              <p>Every round, your guild's leader names a ticker they believe will rise before the round ends.</p>
+              <p>
+                Every round, your guild's leader names a ticker they believe will rise before the round ends. A rival's call
+                is secret unless you pay silver to scout them (see Diplomacy) &mdash; your own call is always visible to you.
+              </p>
+            </div>
+          </div>
+          <div className="rules-item">
+            <span className="rules-item__icon">💻</span>
+            <div>
+              <h3>Kingdoms &amp; sectors</h3>
+              <p>
+                Well-known tickers belong to a sector: 💻 Technology, 🏦 Finance, 🛢️ Energy, 🛒 Consumer, ⚙️ Industrial, or 📊
+                Index. Win with a Technology pick and bank an extra tile; win with Finance or Energy and earn bonus silver on
+                top of the normal reward.
+              </p>
             </div>
           </div>
           <div className="rules-item">
@@ -66,7 +80,11 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
             <span className="rules-item__icon">🏰</span>
             <div>
               <h3>Neutral keeps</h3>
-              <p>Ancient keeps dot the realm, unclaimed by anyone. Hold one and your lands grow on their own every other round.</p>
+              <p>
+                Ancient keeps, lumber camps, and ore mines dot the realm, unclaimed by anyone. Hold one and your lands grow
+                on their own every other round. A rarer 🏪 Market Exchange pays silver directly instead of expanding your
+                borders.
+              </p>
             </div>
           </div>
           <div className="rules-item">

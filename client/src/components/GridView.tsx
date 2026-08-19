@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { GameStateSnapshot, ResourceKind } from "../types";
-import { BushIcon, CastleIcon, FlagBadge, KnightIcon, LumberCampIcon, MineIcon, NeutralCastleIcon, RoadTile, RockIcon, TreeIcon } from "./icons";
+import { BushIcon, CastleIcon, ExchangeIcon, FlagBadge, KnightIcon, LumberCampIcon, MineIcon, NeutralCastleIcon, RoadTile, RockIcon, TreeIcon } from "./icons";
 import { formatCoins } from "../lib/coins";
 
 function hash(x: number, y: number): number {
@@ -12,24 +12,28 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
   keep: "Ancient Keep",
   lumber: "Lumber Camp",
   mine: "Ore Mine",
+  exchange: "Market Exchange",
 };
 
 const RESOURCE_DESCRIPTION: Record<ResourceKind, string> = {
   keep: "A crumbling watchtower from a realm long forgotten. Its walls still hold.",
   lumber: "Stacked timber and a woodsman's axe, left for whoever's strong enough to hold the clearing.",
   mine: "A shaft driven into the hillside, ore glinting in the dark. Worth fighting over.",
+  exchange: "A trading post where coin changes hands faster than anywhere else in the realm.",
 };
 
 const RESOURCE_BUFF: Record<ResourceKind, string> = {
   keep: "Whoever holds this keep gains +1 field automatically every other round — no call required.",
   lumber: "This camp's timber reinforces its holder's borders: +1 field automatically every other round.",
   mine: "This mine's ore funds expansion for its holder: +1 field automatically every other round.",
+  exchange: "This exchange pays its holder silver directly every other round, instead of expanding your borders.",
 };
 
 function ResourceIcon({ kind, owner, size }: { kind: ResourceKind; owner: { color: string } | null; size: number }) {
   if (owner) return <CastleIcon color={owner.color} size={size} />;
   if (kind === "lumber") return <LumberCampIcon size={size} />;
   if (kind === "mine") return <MineIcon size={size} />;
+  if (kind === "exchange") return <ExchangeIcon size={size} />;
   return <NeutralCastleIcon size={size} />;
 }
 

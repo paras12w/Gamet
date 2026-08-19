@@ -5,21 +5,23 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, type WebSocket } from "ws";
 import { CONFIG } from "./config.js";
 import { GameEngine } from "./gameEngine.js";
 import { buildRouter } from "./routes.js";
 import { broadcastChat, broadcastState } from "./ws.js";
 import { priceEngine } from "./priceEngine.js";
+import { rateLimit } from "./rateLimit.js";
 
 const app = express();
+app.set("trust proxy", true); // behind Railway's proxy in production - req.ip should reflect the real client
 app.use(cors());
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
 const engine = new GameEngine();
-app.use("/api", buildRouter(engine));
+app.use("/api", rateLimit(CONFIG.RATE_LIMIT_WINDOW_MS, CONFIG.RATE_LIMIT_MAX), buildRouter(engine));
 
 // Serve the built client (present in the Docker image / after `npm run build`)
 // so a single process can host both the API and the static frontend on one
@@ -39,12 +41,42 @@ if (fs.existsSync(clientIndex)) {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
-engine.onUpdate = () => broadcastState(wss, engine.getSnapshot());
+// Which guild each open connection identified as - drives snapshot
+// redaction (see ws.ts) so a rival's in-progress call isn't visible unless
+// it's your own guild or you've scouted them this round.
+const guildIdByClient = new Map<WebSocket, string | null>();
+const broadcast = () => broadcastState(wss, engine, guildIdByClient);
+
+engine.onUpdate = broadcast;
 engine.onChatMessage = (message) => broadcastChat(wss, message);
-priceEngine.onTick = () => broadcastState(wss, engine.getSnapshot());
+priceEngine.onTick = broadcast;
 
 wss.on("connection", (socket) => {
-  socket.send(JSON.stringify({ type: "state", snapshot: engine.getSnapshot() }));
+  guildIdByClient.set(socket, null);
+  socket.send(JSON.stringify({ type: "state", snapshot: engine.getSnapshot(null) }));
+
+  socket.on("message", (raw) => {
+    let msg: unknown;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+    if (
+      typeof msg === "object" &&
+      msg !== null &&
+      "type" in msg &&
+      (msg as { type: unknown }).type === "identify" &&
+      "guildId" in msg &&
+      (typeof (msg as { guildId: unknown }).guildId === "string" || (msg as { guildId: unknown }).guildId === null)
+    ) {
+      const guildId = (msg as { guildId: string | null }).guildId;
+      guildIdByClient.set(socket, guildId);
+      socket.send(JSON.stringify({ type: "state", snapshot: engine.getSnapshot(guildId) }));
+    }
+  });
+
+  socket.on("close", () => guildIdByClient.delete(socket));
 });
 
 priceEngine.start();

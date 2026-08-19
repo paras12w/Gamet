@@ -63,6 +63,26 @@ export function MineIcon({ size = 20 }: { size?: number }) {
   );
 }
 
+export function ExchangeIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
+      <rect x="4" y="12" width="16" height="8" fill="#7a5530" stroke="#3a2814" strokeWidth="0.5" />
+      <path d="M3 12 L12 6 L21 12 Z" fill="#a4302a" stroke="#3a2814" strokeWidth="0.5" />
+      <path d="M3 12 L7.5 12 L12 8.6 L16.5 12 L21 12" fill="none" stroke="#e8dfc4" strokeWidth="0.5" opacity="0.7" />
+      <rect x="10" y="15" width="4" height="5" fill="#1c130a" opacity="0.5" />
+      <circle cx="6.5" cy="16.5" r="1.5" fill="#d4a843" stroke="#4a3616" strokeWidth="0.4" />
+      <circle cx="17.5" cy="16.5" r="1.5" fill="#d4a843" stroke="#4a3616" strokeWidth="0.4" />
+      <text x="6.5" y="17.3" fontSize="1.8" textAnchor="middle" fill="#4a3616" fontFamily="serif">
+        $
+      </text>
+      <text x="17.5" y="17.3" fontSize="1.8" textAnchor="middle" fill="#4a3616" fontFamily="serif">
+        $
+      </text>
+    </svg>
+  );
+}
+
 export function TreeIcon({ size = 14, seed = 0 }: { size?: number; seed?: number }) {
   const lean = (seed % 5) - 2;
   const s = size + (seed % 4) - 1;

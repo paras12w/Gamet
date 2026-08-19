@@ -96,6 +96,7 @@ export function ModeSelectScreen({
                   <span className="guild-list__meta">
                     {g.squareCount} fields &middot; led by {g.leaderUsername}
                   </span>
+                  {g.tagline && <span className="guild-list__tagline">"{g.tagline}"</span>}
                 </div>
                 <button disabled={busy} onClick={() => handleJoinGuild(g.id)}>
                   Join

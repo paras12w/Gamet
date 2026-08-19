@@ -818,6 +818,44 @@ h1, h2, h3 {
   font-style: italic;
 }
 
+.badge--closed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.guild-menu__tagline-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.guild-menu__tagline-editor label {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-family: "Cinzel", serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.guild-menu__tagline-editor textarea {
+  resize: vertical;
+  min-height: 44px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--parchment-light, #fff);
+}
+
+.guild-menu__tagline-editor button {
+  align-self: flex-start;
+}
+
 .guild-menu__members {
   list-style: none;
   margin: 0;
@@ -1187,6 +1225,16 @@ button:disabled {
 .live-ticker__badge--live {
   color: #4caf50;
   animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+.live-ticker__sector {
+  font-family: "IM Fell English", serif;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  background: rgba(212, 168, 67, 0.08);
+  border: 1px solid var(--border-dim);
+  border-radius: 10px;
+  padding: 1px 8px;
 }
 
 @keyframes live-pulse {
@@ -1566,6 +1614,12 @@ button:disabled {
 .guild-list__meta {
   font-size: 0.7rem;
   color: var(--text-dim);
+}
+
+.guild-list__tagline {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-style: italic;
 }
 
 /* ---------- Flag builder ---------- */

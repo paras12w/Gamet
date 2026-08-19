@@ -1,12 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, GameStateSnapshot, Identity } from "../types";
-import { breakAlliance, cancelWager, getChatHistory, proposeAlliance, proposeWager, respondAlliance, respondWager, sendChatMessage } from "../api";
+import {
+  breakAlliance,
+  cancelWager,
+  claimLeadership,
+  getChatHistory,
+  proposeAlliance,
+  proposeWager,
+  respondAlliance,
+  respondWager,
+  scoutGuild,
+  sendChatMessage,
+  setTagline,
+} from "../api";
 import { FlagBadge } from "./icons";
+import { ACHIEVEMENT_INFO } from "../lib/achievements";
 import { soundEngine } from "../lib/sound";
 import { AllianceChatThread } from "./AllianceChatThread";
 import { formatCoins } from "../lib/coins";
+import { LiveTicker } from "./GuildBar";
 
 type Tab = "overview" | "members" | "diplomacy" | "wagers" | "chat";
+
+// Mirrors server/src/config.ts CONFIG.SCOUT_COST default - same pattern as
+// GuildBar's MAX_PENDING_TILES constant.
+const SCOUT_COST = 5;
 
 function formatFoundedAgo(createdAt: number): string {
   const ms = Date.now() - createdAt;
@@ -22,12 +40,14 @@ function formatFoundedAgo(createdAt: number): string {
 export function GuildMenu({
   snapshot,
   identity,
+  setIdentity,
   chatMessages,
   onClose,
   onLeave,
 }: {
   snapshot: GameStateSnapshot;
   identity: Identity;
+  setIdentity: (next: Identity) => void;
   chatMessages: ChatMessage[];
   onClose: () => void;
   onLeave: () => void;
@@ -41,6 +61,10 @@ export function GuildMenu({
   const [expandedAlly, setExpandedAlly] = useState<string | null>(null);
   const [wagerTarget, setWagerTarget] = useState("");
   const [wagerAmount, setWagerAmount] = useState("");
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [taglineDraft, setTaglineDraft] = useState<string | null>(null);
+  const [taglineSaving, setTaglineSaving] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   const guild = snapshot.guilds.find((g) => g.id === identity.guildId);
@@ -102,6 +126,36 @@ export function GuildMenu({
     await runDiplo(`wager-propose-${wagerTarget}`, () => proposeWager(guildId, identity.leaderSecret!, wagerTarget, amount));
     setWagerTarget("");
     setWagerAmount("");
+  }
+
+  async function handleClaimLeadership() {
+    if (!guildId) return;
+    setClaiming(true);
+    setClaimError(null);
+    try {
+      const result = await claimLeadership(guildId, identity.username);
+      setIdentity({ ...identity, leaderSecret: result.leaderSecret });
+      soundEngine.play("click");
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : "Could not claim leadership");
+      soundEngine.play("error");
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  async function saveTagline() {
+    if (!guildId || !identity.leaderSecret || taglineDraft === null) return;
+    setTaglineSaving(true);
+    try {
+      await setTagline(guildId, identity.leaderSecret, taglineDraft);
+      soundEngine.play("click");
+      setTaglineDraft(null);
+    } catch {
+      /* best-effort, leave draft open on failure */
+    } finally {
+      setTaglineSaving(false);
+    }
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -194,7 +248,50 @@ export function GuildMenu({
                 </div>
               )}
 
+              {guild.achievements.length > 0 && (
+                <>
+                  <h4 className="diplomacy__section-title">Achievements</h4>
+                  <div className="guild-menu__badges">
+                    {guild.achievements.map((key) => {
+                      const info = ACHIEVEMENT_INFO[key];
+                      if (!info) return null;
+                      return (
+                        <span key={key} className="achievement-badge" title={info.description}>
+                          {info.icon} {info.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
               <p className="guild-menu__founded">Founded {formatFoundedAgo(guild.createdAt)}</p>
+
+              {guild.leaderless && !isLeader && (
+                <div className="badge badge--closed">
+                  ⚠️ Our leader has gone quiet — any member can step up.
+                  <button type="button" className="link-button" disabled={claiming} onClick={handleClaimLeadership}>
+                    {claiming ? "Claiming…" : "Claim Leadership"}
+                  </button>
+                </div>
+              )}
+              {claimError && <div className="form-error">{claimError}</div>}
+
+              {isLeader && (
+                <div className="guild-menu__tagline-editor">
+                  <label htmlFor="guild-tagline">Recruiting tagline</label>
+                  <textarea
+                    id="guild-tagline"
+                    maxLength={80}
+                    value={taglineDraft ?? guild.tagline}
+                    onChange={(e) => setTaglineDraft(e.target.value)}
+                    placeholder="Pitch your guild to would-be recruits…"
+                  />
+                  <button type="button" disabled={taglineDraft === null || taglineSaving} onClick={saveTagline}>
+                    {taglineSaving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              )}
 
               {streakEntries.length > 0 && (
                 <div className="guild-panel__streaks">
@@ -305,7 +402,8 @@ export function GuildMenu({
                 </>
               )}
 
-              <h4 className="diplomacy__section-title">Propose an Alliance</h4>
+              <h4 className="diplomacy__section-title">Rival Guilds</h4>
+              <p className="wagers__disclaimer">🔭 Scouting reveals a rival's locked-in call to you alone for the rest of the round.</p>
               {snapshot.guilds
                 .filter(
                   (g) =>
@@ -319,6 +417,27 @@ export function GuildMenu({
                   <div key={g.id} className="diplomacy__row">
                     <FlagBadge color={g.color} decal={g.flagDecal} size={20} />
                     <span className="diplomacy__name">{g.name}</span>
+                    {g.proposalTicker ? (
+                      <LiveTicker
+                        ticker={g.proposalTicker}
+                        startPrice={g.proposalStartPrice}
+                        livePrice={g.livePrice}
+                        source={g.liveSource}
+                        sectorKey={g.proposalSectorKey}
+                      />
+                    ) : (
+                      isLeader &&
+                      g.hasProposal && (
+                        <button
+                          type="button"
+                          className="diplomacy__btn"
+                          disabled={diploBusy === `scout-${g.id}`}
+                          onClick={() => runDiplo(`scout-${g.id}`, () => scoutGuild(guildId!, identity.leaderSecret!, g.id))}
+                        >
+                          🔭 Scout ({SCOUT_COST}🪙)
+                        </button>
+                      )
+                    )}
                     {isLeader && (
                       <button
                         type="button"

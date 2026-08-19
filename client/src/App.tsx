@@ -34,9 +34,9 @@ function loadIdentity(): Identity {
 }
 
 export default function App() {
-  const { snapshot, connected, chatMessages } = useGameSocket();
-  const { muted, toggleMuted, play } = useSound();
   const [identity, setIdentityState] = useState<Identity>(loadIdentity);
+  const { snapshot, connected, chatMessages } = useGameSocket(identity.guildId);
+  const { muted, toggleMuted, play } = useSound();
   const { toasts, dismiss } = useToasts(snapshot, identity.guildId, play, chatMessages);
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("board");
@@ -173,6 +173,7 @@ export default function App() {
           <GuildMenu
             snapshot={snapshot}
             identity={identity}
+            setIdentity={setIdentity}
             chatMessages={chatMessages}
             onClose={() => setGuildMenuOpen(false)}
             onLeave={() => {

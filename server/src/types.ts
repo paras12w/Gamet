@@ -1,8 +1,10 @@
+import type { AchievementKey } from "./achievements.js";
+
 export type CellKey = string; // `${x},${y}`
 
 export type CellType = "empty" | "castle" | "hq";
 
-export type ResourceKind = "keep" | "lumber" | "mine";
+export type ResourceKind = "keep" | "lumber" | "mine" | "exchange";
 
 export interface Cell {
   x: number;
@@ -58,9 +60,13 @@ export interface RoundResultEntry {
   // if any of it overflowed (MAX_PENDING_TILES).
   tileOutcome?: "banked" | "destroyed";
   // How many tiles this win was worth (1 normally, TOP_CALLER_TILE_BONUS for
-  // the round's single best-performing call) - not necessarily how many
-  // actually landed in the bank if it was already near full.
+  // the round's single best-performing call, plus any sector tile bonus) -
+  // not necessarily how many actually landed in the bank if it was already
+  // near full.
   tilesGranted?: number;
+  // Set on a win when the called ticker belongs to a known sector/kingdom.
+  sectorKey?: string;
+  sectorSilverBonus?: number;
 }
 
 export interface RoundHistoryEntry {
@@ -99,6 +105,13 @@ export interface Guild {
   createdAt: number;
   allies: Set<string>; // mutual non-aggression pacts; resets each session
   allianceRequestsSent: Set<string>; // guild ids this guild has proposed an alliance to, awaiting response
+  scoutedBy: Set<string>; // guild ids that have paid to see this guild's call this round; resets each round
+  tagline: string; // short leader-set pitch shown on the recruiting board; persists across sessions
+  lastCallRound: number; // round number of the leader's last successful proposeTicker
+  leaderless: boolean; // true once the leader's gone LEADER_INACTIVITY_ROUNDS without a call
+  achievements: Set<AchievementKey>; // one-time unlocks; persists across sessions
+  sectorWins: Record<string, number>; // wins per sector key, tracks progress toward sector_specialist; resets on server restart
+  currentStreak: number; // consecutive rounds this guild has won (any outcome); resets on server restart
 }
 
 export interface PublicGuild {
@@ -126,6 +139,10 @@ export interface PublicGuild {
   proposalStartPrice: number | null;
   livePrice: number | null; // current tracked price for the active call, null if no active call
   liveSource: "live" | "simulated" | null;
+  proposalSectorKey: string | null;
+  tagline: string;
+  leaderless: boolean;
+  achievements: AchievementKey[];
 }
 
 export interface Wager {

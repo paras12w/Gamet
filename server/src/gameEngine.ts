@@ -12,13 +12,18 @@ import {
   scatterNeutralPositions,
 } from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
+import { SECTOR_SILVER_BONUS, SECTOR_TILE_BONUS, sectorForTicker } from "./sectors.js";
+import { ACHIEVEMENTS, type AchievementKey } from "./achievements.js";
 import {
   getTopGuildsByTokens,
   insertGuildRow,
   loadAllGuildRows,
   recordSessionResult,
+  updateGuildAchievements,
+  updateGuildLeader,
   updateGuildMembers,
   updateGuildSessionsWon,
+  updateGuildTagline,
   updateGuildTakeovers,
   updateGuildTokens,
 } from "./db.js";
@@ -37,7 +42,7 @@ import type {
   Wager,
 } from "./types.js";
 
-const RESOURCE_KINDS: ResourceKind[] = ["keep", "lumber", "mine"];
+const RESOURCE_KINDS: ResourceKind[] = ["keep", "lumber", "mine", "exchange"];
 
 function randomToken(): string {
   return randomBytes(24).toString("hex");
@@ -124,6 +129,13 @@ export class GameEngine {
         createdAt: row.created_at,
         allies: new Set(),
         allianceRequestsSent: new Set(),
+        scoutedBy: new Set(),
+        tagline: row.tagline,
+        lastCallRound: this.roundNumber,
+        leaderless: false,
+        achievements: new Set(JSON.parse(row.achievements) as AchievementKey[]),
+        sectorWins: {},
+        currentStreak: 0,
       };
       this.guilds.set(guild.id, guild);
       this.placeHq(guild);
@@ -199,6 +211,13 @@ export class GameEngine {
       createdAt: Date.now(),
       allies: new Set(),
       allianceRequestsSent: new Set(),
+      scoutedBy: new Set(),
+      tagline: "",
+      lastCallRound: this.roundNumber,
+      leaderless: false,
+      achievements: new Set(),
+      sectorWins: {},
+      currentStreak: 0,
     };
     this.guilds.set(guild.id, guild);
     this.placeHq(guild);
@@ -214,6 +233,8 @@ export class GameEngine {
       tokens: guild.tokens,
       sessions_won: guild.sessionsWon,
       takeovers: guild.takeovers,
+      tagline: guild.tagline,
+      achievements: JSON.stringify([]),
       created_at: guild.createdAt,
     });
 
@@ -323,6 +344,8 @@ export class GameEngine {
       this.battles = this.battles.filter((b) => !(b.guildA === guild.id && b.guildB === proposer.id) && !(b.guildA === proposer.id && b.guildB === guild.id));
       this.postSystemMessage(guild.id, `🤝 An alliance has been formed with ${proposer.name}!`);
       this.postSystemMessage(proposer.id, `🤝 An alliance has been formed with ${guild.name}!`);
+      this.awardAchievement(guild, "first_alliance");
+      this.awardAchievement(proposer, "first_alliance");
     } else {
       this.postSystemMessage(guild.id, `⚔️ We have declined ${proposer.name}'s alliance offer.`);
       this.postSystemMessage(proposer.id, `⚔️ ${guild.name} has declined our alliance offer.`);
@@ -403,6 +426,32 @@ export class GameEngine {
     return { ok: true };
   }
 
+  // ---------- scouting ----------
+
+  /** Pay SCOUT_COST silver to reveal a rival's locked-in call for the rest
+   * of this round - their ticker, price, and sector become visible to you
+   * (and only you) via toPublicGuild's redaction check. */
+  scoutGuild(guildId: string, leaderSecret: string, targetGuildId: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    const target = this.guilds.get(targetGuildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can scout" };
+    if (!target || !target.alive) return { ok: false, error: "Target guild not found" };
+    if (target.id === guild.id) return { ok: false, error: "Cannot scout your own guild" };
+    if (!target.proposal) return { ok: false, error: "That guild hasn't called a ticker yet this round" };
+    if (target.scoutedBy.has(guild.id)) return { ok: false, error: "You've already scouted that guild this round" };
+    if (guild.tokens < CONFIG.SCOUT_COST) return { ok: false, error: "Not enough silver to scout" };
+    guild.tokens -= CONFIG.SCOUT_COST;
+    updateGuildTokens(guild.id, guild.tokens);
+    target.scoutedBy.add(guild.id);
+    this.postSystemMessage(
+      guild.id,
+      `🔭 Scouted ${target.name} — calling ${target.proposal.ticker} at $${target.proposal.startPrice.toFixed(2)}.`
+    );
+    this.emitUpdate();
+    return { ok: true };
+  }
+
   private settleWagers(pctById: Map<string, number>): void {
     const remaining: Wager[] = [];
     for (const wager of this.wagers) {
@@ -432,6 +481,7 @@ export class GameEngine {
       updateGuildTokens(winner.id, winner.tokens);
       this.postSystemMessage(winner.id, `🪙 We won the wager against ${loser.name} - ${amount} gold claimed!`);
       this.postSystemMessage(loser.id, `🪙 We lost the wager against ${winner.name} - ${amount} gold paid out.`);
+      this.awardAchievement(winner, "first_wager_won");
     }
     this.wagers = remaining;
   }
@@ -444,6 +494,8 @@ export class GameEngine {
     const quote = await priceEngine.getQuote(ticker);
     if (!quote.valid) return { ok: false, error: `Unknown ticker symbol "${ticker.toUpperCase()}"` };
     guild.proposal = { ticker: ticker.trim().toUpperCase(), startPrice: quote.price, submittedAt: Date.now() };
+    guild.lastCallRound = this.roundNumber;
+    guild.leaderless = false;
     this.emitUpdate();
     return { ok: true };
   }
@@ -491,6 +543,35 @@ export class GameEngine {
     return granted < count ? "destroyed" : "banked";
   }
 
+  /** Applies a winning guild's sector/kingdom bonus (if their called ticker
+   * belongs to a known sector): Tech adds a bonus tile, Finance/Energy add
+   * bonus silver directly. Call only for a guild that has just won this
+   * round with a real proposal. */
+  private applySectorBonus(guild: Guild): { tileBonus: number; silverBonus: number; sectorKey: string | undefined } {
+    const sector = guild.proposal ? sectorForTicker(guild.proposal.ticker) : null;
+    if (!sector) return { tileBonus: 0, silverBonus: 0, sectorKey: undefined };
+    const tileBonus = sector.key === "tech" ? SECTOR_TILE_BONUS : 0;
+    const silverBonus = SECTOR_SILVER_BONUS[sector.key] ?? 0;
+    if (silverBonus > 0) {
+      guild.tokens += silverBonus;
+      updateGuildTokens(guild.id, guild.tokens);
+    }
+    guild.sectorWins[sector.key] = (guild.sectorWins[sector.key] ?? 0) + 1;
+    if (guild.sectorWins[sector.key] >= 3) this.awardAchievement(guild, "sector_specialist");
+    return { tileBonus, silverBonus, sectorKey: sector.key };
+  }
+
+  /** Grants a one-time silver-rewarding achievement, if not already unlocked. */
+  private awardAchievement(guild: Guild, key: AchievementKey): void {
+    if (guild.achievements.has(key)) return;
+    guild.achievements.add(key);
+    const info = ACHIEVEMENTS[key];
+    guild.tokens += info.silverReward;
+    updateGuildTokens(guild.id, guild.tokens);
+    updateGuildAchievements(guild.id, [...guild.achievements]);
+    this.postSystemMessage(guild.id, `${info.icon} Achievement unlocked: ${info.name} — +${info.silverReward} silver!`);
+  }
+
   /** Diminishing-returns multiplier applied to silver/gold rewards so a
    * bigger guild's shared pot grows sub-linearly with its roster - a solo
    * warband keeps every coin (multiplier 1), a 4-member guild gets 2x (not
@@ -533,6 +614,7 @@ export class GameEngine {
     updateGuildMembers(winner.id, winner.members);
     winner.takeovers += 1;
     updateGuildTakeovers(winner.id, winner.takeovers);
+    this.awardAchievement(winner, "first_conquest");
     delete winner.streaks[loser.id];
     // Drop any other pending battles involving the now-absorbed guild.
     this.battles = this.battles.filter((b) => b.guildA !== loser.id && b.guildB !== loser.id);
@@ -600,7 +682,8 @@ export class GameEngine {
       winner.squares.add(loserCell);
       const capturedCell = this.grid.get(loserCell);
       if (capturedCell) capturedCell.owner = winner.id;
-      const winnerTileCount = tileCountFor(winner.id);
+      const winnerSector = this.applySectorBonus(winner);
+      const winnerTileCount = tileCountFor(winner.id) + winnerSector.tileBonus;
       const bonusTileOutcome = this.grantTile(winner, winnerTileCount);
 
       winner.streaks[loser.id] = (winner.streaks[loser.id] ?? 0) + 1;
@@ -616,8 +699,24 @@ export class GameEngine {
       const finalOutcomeB = takeover && b.id === winner.id ? "takeover_win" : takeover && b.id === loser.id ? "takeover_lost" : outcomeB;
 
       results.push(
-        this.buildResult(a, infoA, finalOutcomeA, a.id === winner.id ? bonusTileOutcome : undefined, a.id === winner.id ? winnerTileCount : undefined),
-        this.buildResult(b, infoB, finalOutcomeB, b.id === winner.id ? bonusTileOutcome : undefined, b.id === winner.id ? winnerTileCount : undefined)
+        this.buildResult(
+          a,
+          infoA,
+          finalOutcomeA,
+          a.id === winner.id ? bonusTileOutcome : undefined,
+          a.id === winner.id ? winnerTileCount : undefined,
+          a.id === winner.id ? winnerSector.sectorKey : undefined,
+          a.id === winner.id ? winnerSector.silverBonus : undefined
+        ),
+        this.buildResult(
+          b,
+          infoB,
+          finalOutcomeB,
+          b.id === winner.id ? bonusTileOutcome : undefined,
+          b.id === winner.id ? winnerTileCount : undefined,
+          b.id === winner.id ? winnerSector.sectorKey : undefined,
+          b.id === winner.id ? winnerSector.silverBonus : undefined
+        )
       );
     }
     this.battles = stillPending;
@@ -631,9 +730,10 @@ export class GameEngine {
       const pct = pctById.get(guild.id)!;
       const info = priceInfo.get(guild.id)!;
       if (pct > 0) {
-        const tileCount = tileCountFor(guild.id);
+        const sector = this.applySectorBonus(guild);
+        const tileCount = tileCountFor(guild.id) + sector.tileBonus;
         const tileOutcome = this.grantTile(guild, tileCount);
-        results.push(this.buildResult(guild, info, "expanded", tileOutcome, tileCount));
+        results.push(this.buildResult(guild, info, "expanded", tileOutcome, tileCount, sector.sectorKey, sector.silverBonus));
       } else {
         results.push(this.buildResult(guild, info, "no_change"));
       }
@@ -641,16 +741,28 @@ export class GameEngine {
 
     if (this.roundNumber % CONFIG.CASTLE_BUFF_EVERY_N_ROUNDS === 0) {
       for (const guild of this.livingGuilds()) {
-        const ownedCastles = this.castles.filter((c) => this.grid.get(c)?.owner === guild.id).length;
-        for (let i = 0; i < ownedCastles; i++) this.placeExpansion(guild);
+        const ownedCastles = this.castles.filter((c) => this.grid.get(c)?.owner === guild.id);
+        for (const c of ownedCastles) {
+          if (this.grid.get(c)?.resourceKind === "exchange") {
+            guild.tokens += CONFIG.EXCHANGE_SILVER_BUFF;
+            updateGuildTokens(guild.id, guild.tokens);
+          } else {
+            this.placeExpansion(guild);
+          }
+        }
       }
     }
 
     this.detectNewBattles();
     this.settleWagers(pctById);
     this.awardRoundLeaderSilver();
+    this.checkLeaderInactivity();
+    this.trackWinStreaks(results);
 
-    for (const guild of this.livingGuilds()) guild.proposal = null;
+    for (const guild of this.livingGuilds()) {
+      guild.proposal = null;
+      guild.scoutedBy = new Set();
+    }
     this.lastRoundResults = results;
     if (results.length > 0) {
       this.roundHistory.push({ sessionNumber: this.sessionNumber, roundNumber: this.roundNumber, results });
@@ -671,7 +783,9 @@ export class GameEngine {
     info: { ticker: string; start: number; end: number } | null,
     outcome: RoundResultEntry["outcome"],
     tileOutcome?: "banked" | "destroyed",
-    tilesGranted?: number
+    tilesGranted?: number,
+    sectorKey?: string,
+    sectorSilverBonus?: number
   ): RoundResultEntry {
     return {
       guildId: guild.id,
@@ -683,6 +797,8 @@ export class GameEngine {
       outcome,
       tileOutcome,
       tilesGranted,
+      sectorKey,
+      sectorSilverBonus,
     };
   }
 
@@ -708,6 +824,67 @@ export class GameEngine {
     leader.tokens += silver;
     updateGuildTokens(leader.id, leader.tokens);
     this.postSystemMessage(leader.id, `🪙 Our territory leads the realm this round - +${silver} silver.`);
+  }
+
+  /** A guild with more than one member goes leaderless if its leader hasn't
+   * made a successful call in LEADER_INACTIVITY_ROUNDS rounds - any existing
+   * member can then claim leadership (see claimLeadership). Solo guilds are
+   * exempt: with nobody else to promote, there's nothing to fix by flagging
+   * it. */
+  private checkLeaderInactivity(): void {
+    for (const guild of this.livingGuilds()) {
+      if (guild.leaderless || guild.members.length <= 1) continue;
+      if (this.roundNumber - guild.lastCallRound > CONFIG.LEADER_INACTIVITY_ROUNDS) {
+        guild.leaderless = true;
+        this.postSystemMessage(guild.id, `⚠️ Our leader has gone quiet - any member can claim leadership from the Overview tab.`);
+      }
+    }
+  }
+
+  /** Tracks each guild's consecutive round-win streak (any winning outcome)
+   * for the win_streak_5 achievement; any non-win outcome resets it. */
+  private trackWinStreaks(results: RoundResultEntry[]): void {
+    const winOutcomes = new Set(["expanded", "battle_won", "takeover_win"]);
+    const wonThisRound = new Set(results.filter((r) => winOutcomes.has(r.outcome)).map((r) => r.guildId));
+    for (const guild of this.livingGuilds()) {
+      if (wonThisRound.has(guild.id)) {
+        guild.currentStreak += 1;
+        if (guild.currentStreak >= 5) this.awardAchievement(guild, "win_streak_5");
+      } else {
+        guild.currentStreak = 0;
+      }
+    }
+  }
+
+  /** Any current member of a leaderless guild can claim leadership,
+   * receiving a fresh leaderSecret. Membership here is just a self-asserted
+   * username match, same trust level as the rest of the game - there's no
+   * password/account system to verify identity more strongly than that. */
+  claimLeadership(guildId: string, username: string): { ok: true; leaderSecret: string } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (!guild.leaderless) return { ok: false, error: "This guild already has an active leader" };
+    const clean = username.trim().slice(0, 30);
+    if (!clean || !guild.members.includes(clean)) return { ok: false, error: "Only an existing member can claim leadership" };
+    const secret = randomToken();
+    guild.leaderUsername = clean;
+    guild.leaderSecret = secret;
+    guild.leaderless = false;
+    guild.lastCallRound = this.roundNumber;
+    updateGuildLeader(guild.id, clean, secret);
+    this.postSystemMessage(guild.id, `👑 ${clean} has claimed leadership of the guild.`);
+    this.emitUpdate();
+    return { ok: true, leaderSecret: secret };
+  }
+
+  setTagline(guildId: string, leaderSecret: string, tagline: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can set the tagline" };
+    guild.tagline = tagline.trim().slice(0, 80);
+    updateGuildTagline(guild.id, guild.tagline);
+    this.emitUpdate();
+    return { ok: true };
   }
 
   private detectNewBattles(): void {
@@ -782,6 +959,9 @@ export class GameEngine {
       guild.pendingTiles = 0;
       guild.allies = new Set();
       guild.allianceRequestsSent = new Set();
+      guild.scoutedBy = new Set();
+      guild.lastCallRound = this.roundNumber;
+      guild.leaderless = false;
       this.placeHq(guild);
     }
     this.battles = [];
@@ -794,9 +974,13 @@ export class GameEngine {
 
   // ---------- snapshot ----------
 
-  private toPublicGuild(g: Guild): PublicGuild {
+  // Other guilds' in-progress calls are secret unless it's your own guild or
+  // you've paid to scout them this round (see scoutGuild). `hasProposal`
+  // always stays accurate - just the ticker/price/sector are hidden.
+  private toPublicGuild(g: Guild, forGuildId: string | null): PublicGuild {
     const incomingAllianceRequests = [...this.guilds.values()].filter((other) => other.allianceRequestsSent.has(g.id)).map((other) => other.id);
-    const liveQuote = g.proposal ? priceEngine.peek(g.proposal.ticker) : null;
+    const reveal = forGuildId !== null && (forGuildId === g.id || g.scoutedBy.has(forGuildId));
+    const liveQuote = reveal && g.proposal ? priceEngine.peek(g.proposal.ticker) : null;
     return {
       id: g.id,
       name: g.name,
@@ -818,10 +1002,14 @@ export class GameEngine {
       allies: [...g.allies],
       incomingAllianceRequests,
       outgoingAllianceRequests: [...g.allianceRequestsSent],
-      proposalTicker: g.proposal?.ticker ?? null,
-      proposalStartPrice: g.proposal?.startPrice ?? null,
+      proposalTicker: reveal ? (g.proposal?.ticker ?? null) : null,
+      proposalStartPrice: reveal ? (g.proposal?.startPrice ?? null) : null,
       livePrice: liveQuote?.price ?? null,
       liveSource: liveQuote?.source ?? null,
+      proposalSectorKey: reveal && g.proposal ? (sectorForTicker(g.proposal.ticker)?.key ?? null) : null,
+      tagline: g.tagline,
+      leaderless: g.leaderless,
+      achievements: [...g.achievements],
     };
   }
 
@@ -837,11 +1025,11 @@ export class GameEngine {
     }));
   }
 
-  getSnapshot(): GameStateSnapshot {
+  getSnapshot(forGuildId: string | null = null): GameStateSnapshot {
     return {
       gridSize: CONFIG.GRID_SIZE,
       cells: [...this.grid.values()],
-      guilds: [...this.guilds.values()].map((g) => this.toPublicGuild(g)),
+      guilds: [...this.guilds.values()].map((g) => this.toPublicGuild(g, forGuildId)),
       battles: this.battles,
       roundNumber: this.roundNumber,
       sessionNumber: this.sessionNumber,

@@ -106,6 +106,27 @@ export function cancelWager(guildId: string, leaderSecret: string, wagerId: stri
   });
 }
 
+export function scoutGuild(guildId: string, leaderSecret: string, targetGuildId: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/scout`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, targetGuildId }),
+  });
+}
+
+export function claimLeadership(guildId: string, username: string) {
+  return request<{ ok: true; leaderSecret: string }>(`/guilds/${guildId}/claim-leadership`, {
+    method: "POST",
+    body: JSON.stringify({ username }),
+  });
+}
+
+export function setTagline(guildId: string, leaderSecret: string, tagline: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/set-tagline`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, tagline }),
+  });
+}
+
 export function getGlobalChatHistory() {
   return request<{ messages: ChatMessage[] }>(`/chat/global`);
 }

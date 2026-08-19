@@ -1,10 +1,13 @@
 import { Router } from "express";
-import { FLAG_COLORS, FLAG_DECALS, GLOBAL_CHAT_ID } from "./config.js";
+import { CONFIG, FLAG_COLORS, FLAG_DECALS, GLOBAL_CHAT_ID } from "./config.js";
 import { cellKey } from "./grid.js";
+import { rateLimit } from "./rateLimit.js";
 import type { GameEngine } from "./gameEngine.js";
 
 export function buildRouter(engine: GameEngine): Router {
   const router = Router();
+  const createGuildLimit = rateLimit(CONFIG.CREATE_GUILD_RATE_WINDOW_MS, CONFIG.CREATE_GUILD_RATE_MAX);
+  const chatLimit = rateLimit(CONFIG.CHAT_RATE_WINDOW_MS, CONFIG.CHAT_RATE_MAX);
 
   router.get("/state", (_req, res) => {
     res.json(engine.getSnapshot());
@@ -14,7 +17,7 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ colors: FLAG_COLORS, decals: FLAG_DECALS });
   });
 
-  router.post("/guilds", (req, res) => {
+  router.post("/guilds", createGuildLimit, (req, res) => {
     const { name, username, flagColor, flagDecal } = req.body ?? {};
     if (typeof name !== "string" || !name.trim()) return res.status(400).json({ error: "Guild name is required" });
     if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
@@ -59,7 +62,7 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ messages: engine.getChatHistory(req.params.id) });
   });
 
-  router.post("/guilds/:id/chat", (req, res) => {
+  router.post("/guilds/:id/chat", chatLimit, (req, res) => {
     const { username, text } = req.body ?? {};
     if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
     if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Message text is required" });
@@ -104,7 +107,7 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ messages });
   });
 
-  router.post("/guilds/:id/alliance-chat/:allyId", (req, res) => {
+  router.post("/guilds/:id/alliance-chat/:allyId", chatLimit, (req, res) => {
     const { username, text } = req.body ?? {};
     if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
     if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Message text is required" });
@@ -143,11 +146,39 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ ok: true });
   });
 
+  router.post("/guilds/:id/scout", (req, res) => {
+    const { leaderSecret, targetGuildId } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof targetGuildId !== "string") {
+      return res.status(400).json({ error: "leaderSecret and targetGuildId are required" });
+    }
+    const result = engine.scoutGuild(req.params.id, leaderSecret, targetGuildId);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/claim-leadership", (req, res) => {
+    const { username } = req.body ?? {};
+    if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
+    const result = engine.claimLeadership(req.params.id, username);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true, leaderSecret: result.leaderSecret });
+  });
+
+  router.post("/guilds/:id/set-tagline", (req, res) => {
+    const { leaderSecret, tagline } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof tagline !== "string") {
+      return res.status(400).json({ error: "leaderSecret and tagline are required" });
+    }
+    const result = engine.setTagline(req.params.id, leaderSecret, tagline);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
   router.get("/chat/global", (_req, res) => {
     res.json({ messages: engine.getChatHistory(GLOBAL_CHAT_ID) });
   });
 
-  router.post("/chat/global", (req, res) => {
+  router.post("/chat/global", chatLimit, (req, res) => {
     const { username, text } = req.body ?? {};
     if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
     if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Message text is required" });

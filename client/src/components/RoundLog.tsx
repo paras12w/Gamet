@@ -1,4 +1,5 @@
 import type { GameStateSnapshot, RoundHistoryEntry, RoundResultEntry } from "../types";
+import { SECTOR_INFO } from "../lib/sectors";
 
 const OUTCOME_LABEL: Record<RoundResultEntry["outcome"], string> = {
   expanded: "🌱 claimed new ground",
@@ -19,6 +20,13 @@ function tileOutcomeLabel(r: RoundResultEntry): string | null {
     return isTop ? ` · 🥇 top call — ${r.tilesGranted} tiles banked!` : " · 🎒 tile banked";
   }
   return isTop ? ` · 🔥 top call, but the bank overflowed — some tiles destroyed` : " · 🔥 tile destroyed (bank full)";
+}
+
+function sectorLabel(r: RoundResultEntry): string | null {
+  if (!r.sectorKey) return null;
+  const sector = SECTOR_INFO[r.sectorKey];
+  if (!sector) return null;
+  return r.sectorSilverBonus ? ` · ${sector.icon} ${sector.name} kingdom bonus — +${r.sectorSilverBonus} silver` : ` · ${sector.icon} ${sector.name} kingdom`;
 }
 
 // Deterministic flavor lines for the outcomes worth dramatizing. Picked by a
@@ -99,6 +107,7 @@ export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {
                     <span className="round-log__outcome">
                       {OUTCOME_LABEL[r.outcome]}
                       {tileOutcomeLabel(r)}
+                      {sectorLabel(r)}
                     </span>
                   </div>
                   {flavor && <p className="round-log__flavor">{flavor}</p>}

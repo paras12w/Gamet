@@ -21,6 +21,8 @@ db.exec(`
     tokens INTEGER NOT NULL DEFAULT 0,
     sessions_won INTEGER NOT NULL DEFAULT 0,
     takeovers INTEGER NOT NULL DEFAULT 0,
+    tagline TEXT NOT NULL DEFAULT '',
+    achievements TEXT NOT NULL DEFAULT '[]',
     created_at INTEGER NOT NULL
   );
 
@@ -44,6 +46,8 @@ const hasColumn = (name: string) => guildColumns.some((c) => c.name === name);
 if (!hasColumn("flag_decal")) db.exec(`ALTER TABLE guilds ADD COLUMN flag_decal TEXT NOT NULL DEFAULT '🛡️'`);
 if (!hasColumn("sessions_won")) db.exec(`ALTER TABLE guilds ADD COLUMN sessions_won INTEGER NOT NULL DEFAULT 0`);
 if (!hasColumn("takeovers")) db.exec(`ALTER TABLE guilds ADD COLUMN takeovers INTEGER NOT NULL DEFAULT 0`);
+if (!hasColumn("tagline")) db.exec(`ALTER TABLE guilds ADD COLUMN tagline TEXT NOT NULL DEFAULT ''`);
+if (!hasColumn("achievements")) db.exec(`ALTER TABLE guilds ADD COLUMN achievements TEXT NOT NULL DEFAULT '[]'`);
 
 export interface GuildRow {
   id: string;
@@ -56,13 +60,15 @@ export interface GuildRow {
   tokens: number;
   sessions_won: number;
   takeovers: number;
+  tagline: string;
+  achievements: string;
   created_at: number;
 }
 
 export function insertGuildRow(row: GuildRow): void {
   db.prepare(
-    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, sessions_won, takeovers, created_at)
-     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @sessions_won, @takeovers, @created_at)`
+    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, sessions_won, takeovers, tagline, achievements, created_at)
+     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @sessions_won, @takeovers, @tagline, @achievements, @created_at)`
   ).run(row);
 }
 
@@ -80,6 +86,18 @@ export function updateGuildTakeovers(id: string, takeovers: number): void {
 
 export function updateGuildMembers(id: string, members: string[]): void {
   db.prepare(`UPDATE guilds SET members = ? WHERE id = ?`).run(JSON.stringify(members), id);
+}
+
+export function updateGuildLeader(id: string, leaderUsername: string, leaderSecret: string): void {
+  db.prepare(`UPDATE guilds SET leader_username = ?, leader_secret = ? WHERE id = ?`).run(leaderUsername, leaderSecret, id);
+}
+
+export function updateGuildTagline(id: string, tagline: string): void {
+  db.prepare(`UPDATE guilds SET tagline = ? WHERE id = ?`).run(tagline, id);
+}
+
+export function updateGuildAchievements(id: string, achievements: string[]): void {
+  db.prepare(`UPDATE guilds SET achievements = ? WHERE id = ?`).run(JSON.stringify(achievements), id);
 }
 
 export function loadAllGuildRows(): GuildRow[] {

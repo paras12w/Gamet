@@ -4,6 +4,7 @@ import { proposeTicker } from "../api";
 import { FlagBadge } from "./icons";
 import { soundEngine } from "../lib/sound";
 import { formatCoins } from "../lib/coins";
+import { SECTOR_INFO } from "../lib/sectors";
 
 export const MAX_PENDING_TILES = 5;
 
@@ -74,7 +75,13 @@ export function GuildBar({
       {guild.hasProposal && guild.proposalTicker ? (
         <div className="locked-in locked-in--live">
           <div className="locked-in__label">🔒 Call sealed for this round</div>
-          <LiveTicker ticker={guild.proposalTicker} startPrice={guild.proposalStartPrice} livePrice={guild.livePrice} source={guild.liveSource} />
+          <LiveTicker
+            ticker={guild.proposalTicker}
+            startPrice={guild.proposalStartPrice}
+            livePrice={guild.livePrice}
+            source={guild.liveSource}
+            sectorKey={guild.proposalSectorKey}
+          />
         </div>
       ) : isLeader ? (
         <form onSubmit={submit} className="ticker-form">
@@ -106,17 +113,25 @@ export function LiveTicker({
   startPrice,
   livePrice,
   source,
+  sectorKey,
 }: {
   ticker: string;
   startPrice: number | null;
   livePrice: number | null;
   source: "live" | "simulated" | null;
+  sectorKey?: string | null;
 }) {
   const pct = livePrice != null && startPrice ? (livePrice - startPrice) / startPrice : null;
   const up = pct !== null && pct >= 0;
+  const sector = sectorKey ? SECTOR_INFO[sectorKey] : null;
   return (
     <div className="live-ticker">
       <span className="live-ticker__symbol">{ticker}</span>
+      {sector && (
+        <span className="live-ticker__sector" title={`${sector.name} kingdom`}>
+          {sector.icon} {sector.name}
+        </span>
+      )}
       {livePrice != null ? (
         <>
           <span className="live-ticker__price">${livePrice.toFixed(2)}</span>

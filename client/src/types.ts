@@ -3,7 +3,7 @@ export const GLOBAL_CHAT_ID = "global";
 
 export type CellType = "empty" | "castle" | "hq";
 
-export type ResourceKind = "keep" | "lumber" | "mine";
+export type ResourceKind = "keep" | "lumber" | "mine" | "exchange";
 
 export interface Cell {
   x: number;
@@ -45,6 +45,8 @@ export interface RoundResultEntry {
   outcome: RoundOutcome;
   tileOutcome?: TileOutcome;
   tilesGranted?: number;
+  sectorKey?: string;
+  sectorSilverBonus?: number;
 }
 
 export interface RoundHistoryEntry {
@@ -97,6 +99,10 @@ export interface PublicGuild {
   proposalStartPrice: number | null;
   livePrice: number | null;
   liveSource: "live" | "simulated" | null;
+  proposalSectorKey: string | null;
+  tagline: string;
+  leaderless: boolean;
+  achievements: string[];
 }
 
 export interface GameStateSnapshot {

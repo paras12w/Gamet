@@ -19,8 +19,8 @@ export const CONFIG = {
   // Tokens awarded to the session-winning guild.
   SESSION_WINNER_TOKENS: Number(process.env.SESSION_WINNER_TOKENS ?? 3),
 
-  // Minimum Chebyshev distance enforced between randomly-placed HQs.
-  MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 6),
+  // Minimum Chebyshev distance enforced between randomly-placed HQs (2x2 blocks).
+  MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 7),
 
   // How often the background price-simulation tick advances (ms).
   PRICE_TICK_MS: Number(process.env.PRICE_TICK_MS ?? 4000),
@@ -32,11 +32,11 @@ export const CONFIG = {
   DB_PATH: process.env.DB_PATH ?? "./data/gamet.sqlite",
 };
 
-export const NEUTRAL_CASTLE_COUNT = 4;
+export const NEUTRAL_CASTLE_COUNT = 8;
 
-// Heraldry options for guild flags. Kept in sync by hand with
-// client/src/data/flags.ts - validated server-side so a client can't send
-// an arbitrary color/emblem.
+// Heraldry options for guild flags. Served to the client via GET /api/flags
+// and re-validated here on guild creation so a client can't send an
+// arbitrary color/emblem.
 export const FLAG_COLORS = [
   "#8c1c24", // crimson
   "#2f5233", // forest green

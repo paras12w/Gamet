@@ -37,10 +37,31 @@ export function chebyshevDistance(a: CellKey, b: CellKey): number {
   return Math.max(Math.abs(pa.x - pb.x), Math.abs(pa.y - pb.y));
 }
 
-/** Fixed, symmetric spots for neutral castles - independent of grid size scaling. */
-export function neutralCastlePositions(): CellKey[] {
+/** The four cell keys of a 2x2 block whose top-left corner is (x, y). */
+export function blockCells(x: number, y: number): CellKey[] {
+  return [cellKey(x, y), cellKey(x + 1, y), cellKey(x, y + 1), cellKey(x + 1, y + 1)];
+}
+
+export function blockInBounds(x: number, y: number): boolean {
+  return inBounds(x, y) && inBounds(x + 1, y + 1);
+}
+
+/** Evenly-spaced ring of neutral keep spots, scaled to grid size. */
+export function neutralCastlePositions(count: number): CellKey[] {
   const size = CONFIG.GRID_SIZE;
-  const near = Math.round(size * 0.28);
-  const far = size - 1 - near;
-  return [cellKey(near, near), cellKey(far, near), cellKey(near, far), cellKey(far, far)];
+  const center = (size - 1) / 2;
+  const radius = center * 0.72;
+  const seen = new Set<CellKey>();
+  const positions: CellKey[] = [];
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
+    const x = Math.min(size - 1, Math.max(0, Math.round(center + radius * Math.cos(angle))));
+    const y = Math.min(size - 1, Math.max(0, Math.round(center + radius * Math.sin(angle))));
+    const key = cellKey(x, y);
+    if (!seen.has(key)) {
+      seen.add(key);
+      positions.push(key);
+    }
+  }
+  return positions;
 }

@@ -55,11 +55,11 @@ export default function App() {
         <TickerTape snapshot={snapshot} />
         <header className="app__header">
           <div className="app__brand">GAMET</div>
-          <Timer snapshot={snapshot} />
         </header>
         <main className="app__main">
           <GridView snapshot={snapshot} myGuildId={identity.guildId} />
           <aside className="app__sidebar">
+            <Timer snapshot={snapshot} />
             <GuildPanel snapshot={snapshot} identity={identity} onLeave={() => setIdentity({ ...identity, guildId: null, leaderSecret: null })} />
             <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
             <RoundLog snapshot={snapshot} />

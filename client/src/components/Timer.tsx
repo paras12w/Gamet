@@ -22,18 +22,16 @@ export function Timer({ snapshot }: { snapshot: GameStateSnapshot }) {
   const fraction = total > 0 ? remaining / total : 0;
 
   return (
-    <div className="timer">
-      <Hourglass fraction={fraction} size={34} />
-      <div className="timer__info">
-        <div className="timer__clock">{formatClock(remaining)}</div>
-        <div className="timer__meta">
-          <span>ROUND {snapshot.roundNumber}/{snapshot.sessionRounds}</span>
-          <span>SESSION #{snapshot.sessionNumber}</span>
-          <span className={snapshot.marketOpen ? "badge badge--open" : "badge badge--closed"}>
-            {snapshot.marketOpen ? "MARKET OPEN" : "MARKET CLOSED — SIMULATED"}
-          </span>
-        </div>
+    <div className="panel timer-panel">
+      <Hourglass fraction={fraction} size={92} />
+      <div className="timer-panel__clock">{formatClock(remaining)}</div>
+      <div className="timer-panel__meta">
+        <span>ROUND {snapshot.roundNumber}/{snapshot.sessionRounds}</span>
+        <span>SESSION #{snapshot.sessionNumber}</span>
       </div>
+      <span className={snapshot.marketOpen ? "badge badge--open" : "badge badge--closed"}>
+        {snapshot.marketOpen ? "● MARKET OPEN" : "○ MARKET CLOSED — SIMULATED"}
+      </span>
     </div>
   );
 }

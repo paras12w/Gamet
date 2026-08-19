@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { CONFIG, FLAG_COLORS, FLAG_DECALS } from "./config.js";
-import { cellKey, chebyshevDistance, inBounds, neighborsOf, neutralCastlePositions, parseKey } from "./grid.js";
+import { CONFIG, FLAG_COLORS, FLAG_DECALS, NEUTRAL_CASTLE_COUNT } from "./config.js";
+import { blockCells, blockInBounds, cellKey, chebyshevDistance, inBounds, neighborsOf, neutralCastlePositions, parseKey } from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
 import { insertGuildRow, loadAllGuildRows, recordSessionResult, updateGuildMembers, updateGuildTokens } from "./db.js";
 import type { Battle, Cell, CellKey, GameStateSnapshot, Guild, PublicGuild, RoundResultEntry } from "./types.js";
@@ -41,7 +41,7 @@ export class GameEngine {
 
   private initGrid(): void {
     this.grid.clear();
-    this.castles = neutralCastlePositions();
+    this.castles = neutralCastlePositions(NEUTRAL_CASTLE_COUNT);
     const castleSet = new Set(this.castles);
     for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
       for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
@@ -54,7 +54,6 @@ export class GameEngine {
   private restoreGuildsFromDb(): void {
     const rows = loadAllGuildRows();
     for (const row of rows) {
-      const hq = this.pickHqCell();
       const guild: Guild = {
         id: row.id,
         name: row.name,
@@ -64,38 +63,55 @@ export class GameEngine {
         color: row.color,
         flagDecal: row.flag_decal,
         tokens: row.tokens,
-        hq,
-        squares: new Set([hq]),
+        hq: cellKey(0, 0), // overwritten by placeHq below
+        squares: new Set(),
         proposal: null,
         streaks: {},
         alive: true,
         createdAt: row.created_at,
       };
       this.guilds.set(guild.id, guild);
-      const cell = this.grid.get(hq)!;
+      this.placeHq(guild);
+    }
+  }
+
+  /** Reserves a free 2x2 block for the guild's castle and marks it owned. */
+  private placeHq(guild: Guild): void {
+    const block = this.pickHqBlock(guild.id);
+    guild.hq = block[0]; // top-left corner is the "primary" cell the client renders the big icon on
+    guild.squares = new Set(block);
+    for (const key of block) {
+      const cell = this.grid.get(key)!;
       cell.type = "hq";
       cell.owner = guild.id;
     }
   }
 
-  private pickHqCell(): CellKey {
-    const existingHqs = [...this.guilds.values()].map((g) => g.hq);
-    const isFree = (key: CellKey) => {
-      const cell = this.grid.get(key);
-      return !!cell && cell.type !== "castle" && cell.owner === null;
+  private pickHqBlock(excludeGuildId?: string): CellKey[] {
+    const existingHqs = [...this.guilds.values()].filter((g) => g.id !== excludeGuildId).map((g) => g.hq);
+    const isFreeBlock = (x: number, y: number) => {
+      if (!blockInBounds(x, y)) return false;
+      return blockCells(x, y).every((key) => {
+        const cell = this.grid.get(key);
+        return !!cell && cell.type !== "castle" && cell.owner === null;
+      });
     };
     let minDistance = CONFIG.MIN_HQ_DISTANCE;
     for (let attempt = 0; attempt < 500; attempt++) {
       if (attempt === 250) minDistance = Math.max(1, Math.floor(minDistance / 2));
-      const x = Math.floor(Math.random() * CONFIG.GRID_SIZE);
-      const y = Math.floor(Math.random() * CONFIG.GRID_SIZE);
+      const x = Math.floor(Math.random() * (CONFIG.GRID_SIZE - 1));
+      const y = Math.floor(Math.random() * (CONFIG.GRID_SIZE - 1));
+      if (!isFreeBlock(x, y)) continue;
       const key = cellKey(x, y);
-      if (!isFree(key)) continue;
-      if (existingHqs.every((hq) => chebyshevDistance(hq, key) >= minDistance)) return key;
+      if (existingHqs.every((hq) => chebyshevDistance(hq, key) >= minDistance)) return blockCells(x, y);
     }
-    // Grid saturated - fall back to any free cell.
-    for (const [key] of this.grid) if (isFree(key)) return key;
-    return cellKey(0, 0);
+    // Grid saturated - fall back to any free block.
+    for (let x = 0; x < CONFIG.GRID_SIZE - 1; x++) {
+      for (let y = 0; y < CONFIG.GRID_SIZE - 1; y++) {
+        if (isFreeBlock(x, y)) return blockCells(x, y);
+      }
+    }
+    return blockCells(0, 0);
   }
 
   // ---------- guild lifecycle ----------
@@ -106,7 +122,6 @@ export class GameEngine {
     flagColor?: string,
     flagDecal?: string
   ): { guild: Guild; secret: string } {
-    const hq = this.pickHqCell();
     const secret = randomToken();
     const guild: Guild = {
       id: randomUUID(),
@@ -117,17 +132,15 @@ export class GameEngine {
       color: flagColor && FLAG_COLORS.includes(flagColor) ? flagColor : randomFlagColor(),
       flagDecal: flagDecal && FLAG_DECALS.includes(flagDecal) ? flagDecal : randomFlagDecal(),
       tokens: 0,
-      hq,
-      squares: new Set([hq]),
+      hq: cellKey(0, 0), // overwritten by placeHq below
+      squares: new Set(),
       proposal: null,
       streaks: {},
       alive: true,
       createdAt: Date.now(),
     };
     this.guilds.set(guild.id, guild);
-    const cell = this.grid.get(hq)!;
-    cell.type = "hq";
-    cell.owner = guild.id;
+    this.placeHq(guild);
 
     insertGuildRow({
       id: guild.id,
@@ -380,16 +393,10 @@ export class GameEngine {
 
     this.initGrid();
     for (const guild of this.guilds.values()) {
-      guild.squares.clear();
       guild.streaks = {};
       guild.proposal = null;
       guild.alive = true;
-      const hq = this.pickHqCell();
-      guild.hq = hq;
-      guild.squares.add(hq);
-      const cell = this.grid.get(hq)!;
-      cell.type = "hq";
-      cell.owner = guild.id;
+      this.placeHq(guild);
     }
     this.battles = [];
     this.roundNumber = 1;

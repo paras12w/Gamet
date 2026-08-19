@@ -2,7 +2,7 @@
 // heavy paths) so they stay crisp at grid-cell scale and can be recolored
 // per guild via a `color` prop.
 
-export function CastleIcon({ color, size = 20 }: { color: string; size?: number }) {
+export function CastleIcon({ color, size = 20 }: { color: string; size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <rect x="4" y="11" width="16" height="10" fill={color} stroke="#000" strokeOpacity="0.25" strokeWidth="0.5" />
@@ -37,6 +37,29 @@ export function TreeIcon({ size = 14, seed = 0 }: { size?: number; seed?: number
       <path d="M12 2 L18 12 H6 Z" fill="#3f6b3f" />
       <path d="M12 6 L17.5 15 H6.5 Z" fill="#487a48" />
       <path d="M12 10 L17 18 H7 Z" fill="#3f6b3f" />
+    </svg>
+  );
+}
+
+export function RockIcon({ size = 12, seed = 0 }: { size?: number; seed?: number }) {
+  const rot = (seed % 7) - 3;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${rot}deg)` }}>
+      <ellipse cx="12" cy="19" rx="9" ry="1.6" fill="#000" opacity="0.18" />
+      <path d="M4 17 L6 10 L11 6 L17 8 L20 14 L18 18 L6 18 Z" fill="#8a8577" stroke="#5c584c" strokeWidth="0.6" />
+      <path d="M6 10 L11 6 L13 9 L9 13 Z" fill="#a19c8c" />
+    </svg>
+  );
+}
+
+export function BushIcon({ size = 11, seed = 0 }: { size?: number; seed?: number }) {
+  const lean = (seed % 5) - 2;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `translateX(${lean}%)` }}>
+      <ellipse cx="12" cy="20" rx="7" ry="1.3" fill="#000" opacity="0.15" />
+      <circle cx="8" cy="15" r="5.5" fill="#3f6b3f" />
+      <circle cx="15" cy="14" r="6" fill="#487a48" />
+      <circle cx="12" cy="17" r="5" fill="#4c7a44" />
     </svg>
   );
 }

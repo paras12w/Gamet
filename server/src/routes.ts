@@ -98,6 +98,51 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ ok: true });
   });
 
+  router.get("/guilds/:id/alliance-chat/:allyId", (req, res) => {
+    const messages = engine.getAllianceChatHistory(req.params.id, req.params.allyId);
+    if (messages === null) return res.status(400).json({ error: "Not allied with that guild" });
+    res.json({ messages });
+  });
+
+  router.post("/guilds/:id/alliance-chat/:allyId", (req, res) => {
+    const { username, text } = req.body ?? {};
+    if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
+    if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Message text is required" });
+    const message = engine.postAllianceMessage(req.params.id, req.params.allyId, username, text);
+    if (!message) return res.status(400).json({ error: "Not allied with that guild" });
+    res.status(201).json({ message });
+  });
+
+  router.post("/guilds/:id/propose-wager", (req, res) => {
+    const { leaderSecret, targetGuildId, amount } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof targetGuildId !== "string" || typeof amount !== "number") {
+      return res.status(400).json({ error: "leaderSecret, targetGuildId, and amount are required" });
+    }
+    const result = engine.proposeWager(req.params.id, leaderSecret, targetGuildId, amount);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/respond-wager", (req, res) => {
+    const { leaderSecret, wagerId, accept } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof wagerId !== "string" || typeof accept !== "boolean") {
+      return res.status(400).json({ error: "leaderSecret, wagerId, and accept are required" });
+    }
+    const result = engine.respondWager(req.params.id, leaderSecret, wagerId, accept);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/cancel-wager", (req, res) => {
+    const { leaderSecret, wagerId } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof wagerId !== "string") {
+      return res.status(400).json({ error: "leaderSecret and wagerId are required" });
+    }
+    const result = engine.cancelWager(req.params.id, leaderSecret, wagerId);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
   router.get("/chat/global", (_req, res) => {
     res.json({ messages: engine.getChatHistory(GLOBAL_CHAT_ID) });
   });

@@ -37,7 +37,7 @@ export default function App() {
   const { snapshot, connected, chatMessages } = useGameSocket();
   const { muted, toggleMuted, play } = useSound();
   const [identity, setIdentityState] = useState<Identity>(loadIdentity);
-  const { toasts, dismiss } = useToasts(snapshot, identity.guildId, play);
+  const { toasts, dismiss } = useToasts(snapshot, identity.guildId, play, chatMessages);
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("board");
   const [placementMode, setPlacementMode] = useState(false);

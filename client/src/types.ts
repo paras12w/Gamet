@@ -62,6 +62,15 @@ export interface HallOfFameEntry {
   takeovers: number;
 }
 
+export interface Wager {
+  id: string;
+  fromGuild: string;
+  toGuild: string;
+  amount: number;
+  status: "pending" | "accepted";
+  settleRound: number | null;
+}
+
 export interface PublicGuild {
   id: string;
   name: string;
@@ -83,6 +92,10 @@ export interface PublicGuild {
   allies: string[];
   incomingAllianceRequests: string[];
   outgoingAllianceRequests: string[];
+  proposalTicker: string | null;
+  proposalStartPrice: number | null;
+  livePrice: number | null;
+  liveSource: "live" | "simulated" | null;
 }
 
 export interface GameStateSnapshot {
@@ -100,6 +113,8 @@ export interface GameStateSnapshot {
   roundHistory: RoundHistoryEntry[];
   lastSessionWinner: { guildId: string; guildName: string } | null;
   hallOfFame: HallOfFameEntry[];
+  wagers: Wager[];
+  recentBattleCells: string[];
 }
 
 export interface Identity {

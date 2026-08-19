@@ -74,6 +74,38 @@ export function breakAlliance(guildId: string, leaderSecret: string, allyGuildId
   });
 }
 
+export function getAllianceChatHistory(guildId: string, allyId: string) {
+  return request<{ messages: ChatMessage[] }>(`/guilds/${guildId}/alliance-chat/${allyId}`);
+}
+
+export function sendAllianceChatMessage(guildId: string, allyId: string, username: string, text: string) {
+  return request<{ message: ChatMessage }>(`/guilds/${guildId}/alliance-chat/${allyId}`, {
+    method: "POST",
+    body: JSON.stringify({ username, text }),
+  });
+}
+
+export function proposeWager(guildId: string, leaderSecret: string, targetGuildId: string, amount: number) {
+  return request<{ ok: true }>(`/guilds/${guildId}/propose-wager`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, targetGuildId, amount }),
+  });
+}
+
+export function respondWager(guildId: string, leaderSecret: string, wagerId: string, accept: boolean) {
+  return request<{ ok: true }>(`/guilds/${guildId}/respond-wager`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, wagerId, accept }),
+  });
+}
+
+export function cancelWager(guildId: string, leaderSecret: string, wagerId: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/cancel-wager`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, wagerId }),
+  });
+}
+
 export function getGlobalChatHistory() {
   return request<{ messages: ChatMessage[] }>(`/chat/global`);
 }

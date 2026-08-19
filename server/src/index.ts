@@ -41,6 +41,7 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 engine.onUpdate = () => broadcastState(wss, engine.getSnapshot());
 engine.onChatMessage = (message) => broadcastChat(wss, message);
+priceEngine.onTick = () => broadcastState(wss, engine.getSnapshot());
 
 wss.on("connection", (socket) => {
   socket.send(JSON.stringify({ type: "state", snapshot: engine.getSnapshot() }));

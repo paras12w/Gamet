@@ -118,6 +118,19 @@ export interface PublicGuild {
   allies: string[];
   incomingAllianceRequests: string[]; // guild ids proposing an alliance to this guild
   outgoingAllianceRequests: string[]; // guild ids this guild has proposed to, awaiting response
+  proposalTicker: string | null;
+  proposalStartPrice: number | null;
+  livePrice: number | null; // current tracked price for the active call, null if no active call
+  liveSource: "live" | "simulated" | null;
+}
+
+export interface Wager {
+  id: string;
+  fromGuild: string;
+  toGuild: string;
+  amount: number; // in-game gold (tokens) staked by each side - not real currency
+  status: "pending" | "accepted";
+  settleRound: number | null; // the round number this wager resolves at, set on accept
 }
 
 export interface GameStateSnapshot {
@@ -135,4 +148,6 @@ export interface GameStateSnapshot {
   roundHistory: RoundHistoryEntry[];
   lastSessionWinner: { guildId: string; guildName: string } | null;
   hallOfFame: HallOfFameEntry[];
+  wagers: Wager[];
+  recentBattleCells: CellKey[];
 }

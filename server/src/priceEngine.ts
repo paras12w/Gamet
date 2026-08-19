@@ -107,10 +107,17 @@ export class PriceEngine {
   private tracked = new Map<string, TrackedTicker>();
   private timer: ReturnType<typeof setInterval> | null = null;
 
+  // Fired after every tick so callers (the game server) can push a fresh
+  // snapshot to connected clients - this is what makes a guild's called
+  // ticker feel "live" in the UI instead of only updating on game actions.
+  onTick: (() => void) | null = null;
+
   start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => {
-      this.tick().catch((err) => console.error("[priceEngine] tick failed", err));
+      this.tick()
+        .then(() => this.onTick?.())
+        .catch((err) => console.error("[priceEngine] tick failed", err));
     }, CONFIG.PRICE_TICK_MS);
   }
 

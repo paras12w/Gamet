@@ -34,6 +34,7 @@ import type {
   ResourceKind,
   RoundHistoryEntry,
   RoundResultEntry,
+  Wager,
 } from "./types.js";
 
 const RESOURCE_KINDS: ResourceKind[] = ["keep", "lumber", "mine"];
@@ -66,6 +67,8 @@ export class GameEngine {
   lastRoundResults: RoundResultEntry[] = [];
   roundHistory: RoundHistoryEntry[] = [];
   lastSessionWinner: { guildId: string; guildName: string } | null = null;
+  wagers: Wager[] = [];
+  recentBattleCells: CellKey[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chats = new Map<string, ChatMessage[]>();
   onUpdate: (() => void) | null = null;
@@ -236,34 +239,54 @@ export class GameEngine {
     return this.chats.get(guildId) ?? [];
   }
 
-  postChatMessage(guildId: string, username: string, text: string): ChatMessage | null {
-    const isGlobal = guildId === GLOBAL_CHAT_ID;
-    const guild = isGlobal ? null : this.guilds.get(guildId);
+  // Posts to any channel key with no existence check - used for real guild
+  // ids, the reserved global channel, and synthetic alliance-pair keys alike.
+  private postChatMessageRaw(channelId: string, username: string, text: string): ChatMessage | null {
     const cleanText = text.trim().slice(0, 300);
-    if ((!isGlobal && !guild) || !cleanText) return null;
+    if (!cleanText) return null;
     const message: ChatMessage = {
       id: randomUUID(),
-      guildId,
+      guildId: channelId,
       username: username.trim().slice(0, 30) || "Unknown",
       text: cleanText,
       at: Date.now(),
     };
-    const history = this.chats.get(guildId) ?? [];
+    const history = this.chats.get(channelId) ?? [];
     history.push(message);
     if (history.length > CHAT_HISTORY_LIMIT) history.shift();
-    this.chats.set(guildId, history);
+    this.chats.set(channelId, history);
     this.onChatMessage?.(message);
     return message;
   }
 
+  postChatMessage(guildId: string, username: string, text: string): ChatMessage | null {
+    const isGlobal = guildId === GLOBAL_CHAT_ID;
+    if (!isGlobal && !this.guilds.get(guildId)) return null;
+    return this.postChatMessageRaw(guildId, username, text);
+  }
+
   private postSystemMessage(guildId: string, text: string): void {
-    this.postChatMessage(guildId, "📯 Herald", text);
+    this.postChatMessageRaw(guildId, "📯 Herald", text);
   }
 
   // ---------- guild alliances ----------
 
   private areAllied(a: string, b: string): boolean {
     return !!this.guilds.get(a)?.allies.has(b);
+  }
+
+  private allianceChatKey(a: string, b: string): string {
+    return `alliance:${[a, b].sort().join("|")}`;
+  }
+
+  getAllianceChatHistory(guildId: string, allyGuildId: string): ChatMessage[] | null {
+    if (!this.areAllied(guildId, allyGuildId)) return null;
+    return this.getChatHistory(this.allianceChatKey(guildId, allyGuildId));
+  }
+
+  postAllianceMessage(guildId: string, allyGuildId: string, username: string, text: string): ChatMessage | null {
+    if (!this.areAllied(guildId, allyGuildId)) return null;
+    return this.postChatMessageRaw(this.allianceChatKey(guildId, allyGuildId), username, text);
   }
 
   proposeAlliance(guildId: string, leaderSecret: string, targetGuildId: string): { ok: true } | { ok: false; error: string } {
@@ -320,6 +343,97 @@ export class GameEngine {
     this.postSystemMessage(ally.id, `💔 ${guild.name} has broken our alliance.`);
     this.emitUpdate();
     return { ok: true };
+  }
+
+  // ---------- guild wagers (in-game gold only, not real currency) ----------
+
+  proposeWager(guildId: string, leaderSecret: string, targetGuildId: string, amount: number): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    const target = this.guilds.get(targetGuildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can propose a wager" };
+    if (!target || !target.alive) return { ok: false, error: "Target guild not found" };
+    if (target.id === guild.id) return { ok: false, error: "A guild cannot wager against itself" };
+    if (!Number.isInteger(amount) || amount <= 0) return { ok: false, error: "Wager amount must be a positive whole number of gold" };
+    if (amount > guild.tokens) return { ok: false, error: "You don't have that much gold" };
+    const existing = this.wagers.some(
+      (w) => w.status === "pending" && ((w.fromGuild === guild.id && w.toGuild === target.id) || (w.fromGuild === target.id && w.toGuild === guild.id))
+    );
+    if (existing) return { ok: false, error: "There is already a pending wager between these guilds" };
+    this.wagers.push({ id: randomUUID(), fromGuild: guild.id, toGuild: target.id, amount, status: "pending", settleRound: null });
+    this.postSystemMessage(guild.id, `🪙 We have challenged ${target.name} to a ${amount}-gold wager on this round's calls.`);
+    this.postSystemMessage(target.id, `🪙 ${guild.name} has challenged us to a ${amount}-gold wager on this round's calls. Respond in the Wagers tab.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  respondWager(guildId: string, leaderSecret: string, wagerId: string, accept: boolean): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can respond to a wager" };
+    const wager = this.wagers.find((w) => w.id === wagerId && w.toGuild === guildId && w.status === "pending");
+    if (!wager) return { ok: false, error: "No pending wager found" };
+    const from = this.guilds.get(wager.fromGuild);
+    if (!from) return { ok: false, error: "Challenger no longer exists" };
+    if (accept) {
+      if (guild.tokens < wager.amount) return { ok: false, error: "You don't have enough gold to cover this wager" };
+      wager.status = "accepted";
+      wager.settleRound = this.roundNumber;
+      this.postSystemMessage(guild.id, `🪙 Wager accepted - ${wager.amount} gold rides on this round's calls against ${from.name}.`);
+      this.postSystemMessage(from.id, `🪙 ${guild.name} accepted our wager - ${wager.amount} gold rides on this round's calls.`);
+    } else {
+      this.wagers = this.wagers.filter((w) => w.id !== wagerId);
+      this.postSystemMessage(guild.id, `🪙 We declined ${from.name}'s wager.`);
+      this.postSystemMessage(from.id, `🪙 ${guild.name} declined our wager.`);
+    }
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  cancelWager(guildId: string, leaderSecret: string, wagerId: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can cancel a wager" };
+    const wager = this.wagers.find((w) => w.id === wagerId && w.fromGuild === guildId && w.status === "pending");
+    if (!wager) return { ok: false, error: "No pending wager found to cancel" };
+    this.wagers = this.wagers.filter((w) => w.id !== wagerId);
+    const target = this.guilds.get(wager.toGuild);
+    if (target) this.postSystemMessage(target.id, `🪙 ${guild.name} withdrew their wager challenge.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  private settleWagers(pctById: Map<string, number>): void {
+    const remaining: Wager[] = [];
+    for (const wager of this.wagers) {
+      if (wager.status !== "accepted" || wager.settleRound !== this.roundNumber) {
+        remaining.push(wager);
+        continue;
+      }
+      const from = this.guilds.get(wager.fromGuild);
+      const to = this.guilds.get(wager.toGuild);
+      if (!from || !to) continue;
+      const pFrom = pctById.has(from.id) ? pctById.get(from.id)! : null;
+      const pTo = pctById.has(to.id) ? pctById.get(to.id)! : null;
+
+      if (pFrom === null && pTo === null) {
+        this.postSystemMessage(from.id, `🪙 Our wager with ${to.name} was voided - neither side called a stock.`);
+        this.postSystemMessage(to.id, `🪙 Our wager with ${from.name} was voided - neither side called a stock.`);
+        continue;
+      }
+
+      const fromWins = pTo === null || (pFrom !== null && pFrom > pTo);
+      const winner = fromWins ? from : to;
+      const loser = fromWins ? to : from;
+      const amount = Math.min(wager.amount, loser.tokens);
+      loser.tokens -= amount;
+      winner.tokens += amount;
+      updateGuildTokens(loser.id, loser.tokens);
+      updateGuildTokens(winner.id, winner.tokens);
+      this.postSystemMessage(winner.id, `🪙 We won the wager against ${loser.name} - ${amount} gold claimed!`);
+      this.postSystemMessage(loser.id, `🪙 We lost the wager against ${winner.name} - ${amount} gold paid out.`);
+    }
+    this.wagers = remaining;
   }
 
   async proposeTicker(guildId: string, leaderSecret: string, ticker: string): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -510,6 +624,7 @@ export class GameEngine {
     }
 
     this.detectNewBattles();
+    this.settleWagers(pctById);
 
     for (const guild of this.livingGuilds()) guild.proposal = null;
     this.lastRoundResults = results;
@@ -568,8 +683,20 @@ export class GameEngine {
           cellB: otherKey,
           createdRound: this.roundNumber,
         });
+        this.trackBattleCell(key);
+        this.trackBattleCell(otherKey);
       }
     }
+  }
+
+  // Records recent battle activity for the territory heatmap - the newest
+  // entries sit at the end of the array, so index (not a timestamp) is what
+  // drives how "hot" a cell renders on the client.
+  private trackBattleCell(key: CellKey): void {
+    const idx = this.recentBattleCells.indexOf(key);
+    if (idx !== -1) this.recentBattleCells.splice(idx, 1);
+    this.recentBattleCells.push(key);
+    if (this.recentBattleCells.length > CONFIG.RECENT_BATTLE_CELLS_LIMIT) this.recentBattleCells.shift();
   }
 
   private endSession(): void {
@@ -601,6 +728,8 @@ export class GameEngine {
       this.placeHq(guild);
     }
     this.battles = [];
+    this.wagers = [];
+    this.recentBattleCells = [];
     this.roundNumber = 1;
     this.sessionNumber += 1;
     this.scheduleNextRound();
@@ -610,6 +739,7 @@ export class GameEngine {
 
   private toPublicGuild(g: Guild): PublicGuild {
     const incomingAllianceRequests = [...this.guilds.values()].filter((other) => other.allianceRequestsSent.has(g.id)).map((other) => other.id);
+    const liveQuote = g.proposal ? priceEngine.peek(g.proposal.ticker) : null;
     return {
       id: g.id,
       name: g.name,
@@ -631,6 +761,10 @@ export class GameEngine {
       allies: [...g.allies],
       incomingAllianceRequests,
       outgoingAllianceRequests: [...g.allianceRequestsSent],
+      proposalTicker: g.proposal?.ticker ?? null,
+      proposalStartPrice: g.proposal?.startPrice ?? null,
+      livePrice: liveQuote?.price ?? null,
+      liveSource: liveQuote?.source ?? null,
     };
   }
 
@@ -662,6 +796,8 @@ export class GameEngine {
       roundHistory: this.roundHistory,
       lastSessionWinner: this.lastSessionWinner,
       hallOfFame: this.getHallOfFame(),
+      wagers: this.wagers,
+      recentBattleCells: this.recentBattleCells,
     };
   }
 

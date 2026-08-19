@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, GameStateSnapshot, Identity } from "../types";
-import { breakAlliance, getChatHistory, proposeAlliance, respondAlliance, sendChatMessage } from "../api";
+import { breakAlliance, cancelWager, getChatHistory, proposeAlliance, proposeWager, respondAlliance, respondWager, sendChatMessage } from "../api";
 import { FlagBadge } from "./icons";
 import { soundEngine } from "../lib/sound";
+import { AllianceChatThread } from "./AllianceChatThread";
 
-type Tab = "overview" | "members" | "diplomacy" | "chat";
+type Tab = "overview" | "members" | "diplomacy" | "wagers" | "chat";
 
 function formatFoundedAgo(createdAt: number): string {
   const ms = Date.now() - createdAt;
@@ -36,6 +37,9 @@ export function GuildMenu({
   const [sending, setSending] = useState(false);
   const [diploBusy, setDiploBusy] = useState<string | null>(null);
   const [diploError, setDiploError] = useState<string | null>(null);
+  const [expandedAlly, setExpandedAlly] = useState<string | null>(null);
+  const [wagerTarget, setWagerTarget] = useState("");
+  const [wagerAmount, setWagerAmount] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
   const guild = snapshot.guilds.find((g) => g.id === identity.guildId);
@@ -67,6 +71,14 @@ export function GuildMenu({
   const rank = [...snapshot.guilds].sort((a, b) => b.squareCount - a.squareCount).findIndex((g) => g.id === guild.id) + 1;
   const streakEntries = Object.entries(guild.streaks).filter(([, v]) => v > 0);
 
+  const myWagers = snapshot.wagers.filter((w) => w.fromGuild === guild.id || w.toGuild === guild.id);
+  const acceptedWagers = myWagers.filter((w) => w.status === "accepted");
+  const incomingWagers = myWagers.filter((w) => w.status === "pending" && w.toGuild === guild.id);
+  const outgoingWagers = myWagers.filter((w) => w.status === "pending" && w.fromGuild === guild.id);
+  const eligibleWagerTargets = snapshot.guilds.filter(
+    (g) => g.alive && g.id !== guild.id && !myWagers.some((w) => w.status === "pending" && (w.fromGuild === g.id || w.toGuild === g.id))
+  );
+
   async function runDiplo(key: string, action: () => Promise<unknown>) {
     if (!guildId || !identity.leaderSecret) return;
     setDiploBusy(key);
@@ -80,6 +92,15 @@ export function GuildMenu({
     } finally {
       setDiploBusy(null);
     }
+  }
+
+  async function submitWagerChallenge(e: React.FormEvent) {
+    e.preventDefault();
+    const amount = Number(wagerAmount);
+    if (!wagerTarget || !Number.isInteger(amount) || amount <= 0 || !guildId || !identity.leaderSecret) return;
+    await runDiplo(`wager-propose-${wagerTarget}`, () => proposeWager(guildId, identity.leaderSecret!, wagerTarget, amount));
+    setWagerTarget("");
+    setWagerAmount("");
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -122,6 +143,9 @@ export function GuildMenu({
           </button>
           <button type="button" className={tab === "diplomacy" ? "active" : ""} onClick={() => setTab("diplomacy")}>
             Diplomacy{guild.incomingAllianceRequests.length > 0 ? ` (${guild.incomingAllianceRequests.length})` : ""}
+          </button>
+          <button type="button" className={tab === "wagers" ? "active" : ""} onClick={() => setTab("wagers")}>
+            Wagers{incomingWagers.length > 0 ? ` (${incomingWagers.length})` : ""}
           </button>
           <button type="button" className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
             Chat
@@ -213,18 +237,32 @@ export function GuildMenu({
                 const ally = snapshot.guilds.find((g) => g.id === allyId);
                 if (!ally) return null;
                 return (
-                  <div key={allyId} className="diplomacy__row">
-                    <FlagBadge color={ally.color} decal={ally.flagDecal} size={20} />
-                    <span className="diplomacy__name">{ally.name}</span>
-                    {isLeader && (
-                      <button
-                        type="button"
-                        className="diplomacy__btn diplomacy__btn--break"
-                        disabled={diploBusy === `break-${allyId}`}
-                        onClick={() => runDiplo(`break-${allyId}`, () => breakAlliance(guildId!, identity.leaderSecret!, allyId))}
-                      >
-                        Break
-                      </button>
+                  <div key={allyId} className="diplomacy__ally">
+                    <div className="diplomacy__row">
+                      <FlagBadge color={ally.color} decal={ally.flagDecal} size={20} />
+                      <span className="diplomacy__name">{ally.name}</span>
+                      <span className="diplomacy__actions">
+                        <button
+                          type="button"
+                          className="diplomacy__btn"
+                          onClick={() => setExpandedAlly(expandedAlly === allyId ? null : allyId)}
+                        >
+                          💬 {expandedAlly === allyId ? "Hide" : "Chat"}
+                        </button>
+                        {isLeader && (
+                          <button
+                            type="button"
+                            className="diplomacy__btn diplomacy__btn--break"
+                            disabled={diploBusy === `break-${allyId}`}
+                            onClick={() => runDiplo(`break-${allyId}`, () => breakAlliance(guildId!, identity.leaderSecret!, allyId))}
+                          >
+                            Break
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    {expandedAlly === allyId && guildId && (
+                      <AllianceChatThread guildId={guildId} allyId={allyId} username={identity.username} chatMessages={chatMessages} />
                     )}
                   </div>
                 );
@@ -297,6 +335,132 @@ export function GuildMenu({
                   Awaiting response from:{" "}
                   {guild.outgoingAllianceRequests.map((id) => snapshot.guilds.find((g) => g.id === id)?.name ?? "unknown").join(", ")}
                 </div>
+              )}
+
+              {diploError && <div className="form-error">{diploError}</div>}
+            </div>
+          )}
+
+          {tab === "wagers" && (
+            <div className="diplomacy">
+              <p className="wagers__disclaimer">🪙 Wagers stake in-game gold only — never real money. A wager settles at the end of the round it's accepted in, based on whose call performed better.</p>
+              {!isLeader && <div className="empty-hint">Only your guild's leader can place wagers.</div>}
+
+              <h4 className="diplomacy__section-title">Riding This Round</h4>
+              {acceptedWagers.length === 0 && <div className="empty-hint">No wagers currently riding.</div>}
+              {acceptedWagers.map((w) => {
+                const opponentId = w.fromGuild === guild.id ? w.toGuild : w.fromGuild;
+                const opponent = snapshot.guilds.find((g) => g.id === opponentId);
+                if (!opponent) return null;
+                return (
+                  <div key={w.id} className="diplomacy__row">
+                    <FlagBadge color={opponent.color} decal={opponent.flagDecal} size={20} />
+                    <span className="diplomacy__name">
+                      {opponent.name} — {w.amount}🪙
+                    </span>
+                    <span className="wager-status">settles this round</span>
+                  </div>
+                );
+              })}
+
+              {incomingWagers.length > 0 && (
+                <>
+                  <h4 className="diplomacy__section-title">Incoming Challenges</h4>
+                  {incomingWagers.map((w) => {
+                    const proposer = snapshot.guilds.find((g) => g.id === w.fromGuild);
+                    if (!proposer) return null;
+                    return (
+                      <div key={w.id} className="diplomacy__row">
+                        <FlagBadge color={proposer.color} decal={proposer.flagDecal} size={20} />
+                        <span className="diplomacy__name">
+                          {proposer.name} — {w.amount}🪙
+                        </span>
+                        {isLeader && (
+                          <span className="diplomacy__actions">
+                            <button
+                              type="button"
+                              className="diplomacy__btn diplomacy__btn--accept"
+                              disabled={diploBusy === `wager-respond-${w.id}`}
+                              onClick={() => runDiplo(`wager-respond-${w.id}`, () => respondWager(guildId!, identity.leaderSecret!, w.id, true))}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="diplomacy__btn"
+                              disabled={diploBusy === `wager-respond-${w.id}`}
+                              onClick={() => runDiplo(`wager-respond-${w.id}`, () => respondWager(guildId!, identity.leaderSecret!, w.id, false))}
+                            >
+                              Decline
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {outgoingWagers.length > 0 && (
+                <>
+                  <h4 className="diplomacy__section-title">Your Challenges</h4>
+                  {outgoingWagers.map((w) => {
+                    const target = snapshot.guilds.find((g) => g.id === w.toGuild);
+                    if (!target) return null;
+                    return (
+                      <div key={w.id} className="diplomacy__row">
+                        <FlagBadge color={target.color} decal={target.flagDecal} size={20} />
+                        <span className="diplomacy__name">
+                          {target.name} — {w.amount}🪙
+                        </span>
+                        {isLeader && (
+                          <button
+                            type="button"
+                            className="diplomacy__btn diplomacy__btn--break"
+                            disabled={diploBusy === `wager-cancel-${w.id}`}
+                            onClick={() => runDiplo(`wager-cancel-${w.id}`, () => cancelWager(guildId!, identity.leaderSecret!, w.id))}
+                          >
+                            Withdraw
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {isLeader && guild.tokens === 0 && (
+                <>
+                  <h4 className="diplomacy__section-title">Challenge a Guild</h4>
+                  <div className="empty-hint">Your guild has no gold to wager yet — win a season or a wager to build up a stake.</div>
+                </>
+              )}
+
+              {isLeader && guild.tokens > 0 && (
+                <>
+                  <h4 className="diplomacy__section-title">Challenge a Guild</h4>
+                  <form className="wager-form" onSubmit={submitWagerChallenge}>
+                    <select value={wagerTarget} onChange={(e) => setWagerTarget(e.target.value)}>
+                      <option value="">Choose a guild…</option>
+                      {eligibleWagerTargets.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      max={guild.tokens}
+                      value={wagerAmount}
+                      onChange={(e) => setWagerAmount(e.target.value)}
+                      placeholder={`Gold (max ${guild.tokens})`}
+                    />
+                    <button type="submit" disabled={!wagerTarget || !wagerAmount || diploBusy === `wager-propose-${wagerTarget}`}>
+                      Challenge
+                    </button>
+                  </form>
+                </>
               )}
 
               {diploError && <div className="form-error">{diploError}</div>}

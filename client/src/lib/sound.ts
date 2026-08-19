@@ -3,7 +3,7 @@
 // short tone bursts with a quick attack/decay envelope, composed into
 // little melodic stabs for the bigger moments (takeover, season win).
 
-export type SoundName = "click" | "chat" | "expand" | "battleWin" | "battleLose" | "takeover" | "sessionWin" | "error";
+export type SoundName = "click" | "chat" | "expand" | "battleWin" | "battleLose" | "takeover" | "sessionWin" | "error" | "herald";
 
 const MUTE_KEY = "gamet:muted";
 
@@ -93,6 +93,10 @@ class SoundEngine {
         break;
       case "error":
         this.tone(t, 180, 0.16, "square", 0.08);
+        break;
+      case "herald":
+        this.tone(t, 660, 0.09, "triangle", 0.09);
+        this.tone(t + 0.1, 660, 0.09, "triangle", 0.09);
         break;
     }
   }

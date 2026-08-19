@@ -43,6 +43,10 @@ export const CONFIG = {
 
   // How many guilds appear in the all-time Hall of Fame, ranked by tokens.
   HALL_OF_FAME_LIMIT: Number(process.env.HALL_OF_FAME_LIMIT ?? 10),
+
+  // How many recently-contested cells the territory heatmap remembers.
+  // Position in the list (not a timestamp) drives its recency/intensity.
+  RECENT_BATTLE_CELLS_LIMIT: Number(process.env.RECENT_BATTLE_CELLS_LIMIT ?? 80),
 };
 
 // Reserved chat channel id for the realm-wide chat, open to everyone

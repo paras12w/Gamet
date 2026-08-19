@@ -525,6 +525,12 @@ h1, h2, h3 {
   box-shadow: 0 0 0 1px #fff inset;
 }
 
+.minimap__mode-btn {
+  margin-left: auto;
+  padding: 4px 9px;
+  font-size: 0.66rem;
+}
+
 /* ---------- Flag badge ---------- */
 
 .flag-badge {
@@ -889,6 +895,67 @@ h1, h2, h3 {
   font-style: italic;
 }
 
+.diplomacy__ally {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alliance-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-dim);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.alliance-chat__log {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.wagers__disclaimer {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.wager-status {
+  font-size: 0.72rem;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.wager-form {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wager-form select {
+  flex: 1;
+  min-width: 120px;
+  background: var(--bg-deep);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: "IM Fell English", serif;
+}
+
+.wager-form input {
+  width: 110px;
+}
+
 .guild-menu__chat {
   flex: 1;
   display: flex;
@@ -1081,6 +1148,52 @@ button:disabled {
   background: rgba(212, 168, 67, 0.06);
 }
 
+.locked-in--live {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.locked-in__label {
+  font-size: 0.78rem;
+}
+
+.live-ticker {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: "Cinzel", serif;
+}
+
+.live-ticker__symbol {
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.03em;
+}
+
+.live-ticker__price {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.live-ticker__badge {
+  font-family: "IM Fell English", serif;
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
+.live-ticker__badge--live {
+  color: #4caf50;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 .form-error {
   color: var(--crimson);
   font-size: 0.78rem;
@@ -1220,18 +1333,21 @@ button:disabled {
   letter-spacing: normal;
 }
 
+.round-log__entry {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-dim);
+}
+
+.round-log__entry:last-child {
+  border-bottom: none;
+}
+
 .round-log__row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: baseline;
   font-size: 0.78rem;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--border-dim);
-}
-
-.round-log__row:last-child {
-  border-bottom: none;
 }
 
 .round-log__guild {
@@ -1241,6 +1357,14 @@ button:disabled {
 
 .round-log__outcome {
   color: var(--text-dim);
+}
+
+.round-log__flavor {
+  margin: 3px 0 0;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--gold);
+  opacity: 0.85;
 }
 
 .pct--up {

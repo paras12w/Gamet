@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Identity } from "./types";
 import { useGameSocket } from "./hooks/useGameSocket";
-import { JoinScreen } from "./components/JoinScreen";
+import { UsernameScreen } from "./components/UsernameScreen";
+import { RulesScreen } from "./components/RulesScreen";
+import { ModeSelectScreen } from "./components/ModeSelectScreen";
 import { TickerTape } from "./components/TickerTape";
 import { Timer } from "./components/Timer";
 import { GridView } from "./components/GridView";
@@ -14,11 +16,11 @@ const STORAGE_KEY = "gamet:identity";
 function loadIdentity(): Identity {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { rulesSeen: false, ...JSON.parse(raw) };
   } catch {
     /* ignore corrupt storage */
   }
-  return { username: "", guildId: null, leaderSecret: null };
+  return { username: "", guildId: null, leaderSecret: null, rulesSeen: false };
 }
 
 export default function App() {
@@ -40,29 +42,39 @@ export default function App() {
 
   const inGuild = !!identity.username && !!identity.guildId;
 
+  let screen: React.ReactNode;
+  if (!identity.username) {
+    screen = <UsernameScreen identity={identity} setIdentity={setIdentity} />;
+  } else if (!identity.rulesSeen) {
+    screen = <RulesScreen onContinue={() => setIdentity({ ...identity, rulesSeen: true })} />;
+  } else if (!inGuild) {
+    screen = <ModeSelectScreen snapshot={snapshot} identity={identity} setIdentity={setIdentity} />;
+  } else if (snapshot) {
+    screen = (
+      <>
+        <TickerTape snapshot={snapshot} />
+        <header className="app__header">
+          <div className="app__brand">GAMET</div>
+          <Timer snapshot={snapshot} />
+        </header>
+        <main className="app__main">
+          <GridView snapshot={snapshot} myGuildId={identity.guildId} />
+          <aside className="app__sidebar">
+            <GuildPanel snapshot={snapshot} identity={identity} onLeave={() => setIdentity({ ...identity, guildId: null, leaderSecret: null })} />
+            <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
+            <RoundLog snapshot={snapshot} />
+          </aside>
+        </main>
+      </>
+    );
+  } else {
+    screen = <div className="conn-banner conn-banner--full">Riding to the front lines…</div>;
+  }
+
   return (
     <div className="app">
       {!connected && <div className="conn-banner">Reconnecting to the exchange…</div>}
-
-      {snapshot && inGuild ? (
-        <>
-          <TickerTape snapshot={snapshot} />
-          <header className="app__header">
-            <div className="app__brand">GAMET</div>
-            <Timer snapshot={snapshot} />
-          </header>
-          <main className="app__main">
-            <GridView snapshot={snapshot} myGuildId={identity.guildId} />
-            <aside className="app__sidebar">
-              <GuildPanel snapshot={snapshot} identity={identity} onLeave={() => setIdentity({ ...identity, guildId: null, leaderSecret: null })} />
-              <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
-              <RoundLog snapshot={snapshot} />
-            </aside>
-          </main>
-        </>
-      ) : (
-        <JoinScreen snapshot={snapshot} identity={identity} setIdentity={setIdentity} />
-      )}
+      {screen}
     </div>
   );
 }

@@ -43,6 +43,7 @@ export interface PublicGuild {
   leaderUsername: string;
   members: string[];
   color: string;
+  flagDecal: string;
   tokens: number;
   hq: string;
   squareCount: number;
@@ -71,4 +72,10 @@ export interface Identity {
   username: string;
   guildId: string | null;
   leaderSecret: string | null;
+  rulesSeen: boolean;
+}
+
+export interface FlagOptions {
+  colors: string[];
+  decals: string[];
 }

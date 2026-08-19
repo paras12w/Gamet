@@ -1,15 +1,15 @@
 import type { GameStateSnapshot, RoundResultEntry } from "../types";
 
 const OUTCOME_LABEL: Record<RoundResultEntry["outcome"], string> = {
-  expanded: "📈 expanded territory",
-  no_change: "flat — no expansion",
-  battle_won: "⚔️ won the border battle",
-  battle_lost: "⚔️ lost the border battle",
-  battle_tied: "⚔️ battle tied — no capture",
-  battle_forfeit: "⚔️ forfeited the battle (no call)",
+  expanded: "🌱 claimed new ground",
+  no_change: "held their ground — no gain",
+  battle_won: "⚔️ won the duel",
+  battle_lost: "⚔️ lost the duel",
+  battle_tied: "⚔️ duel tied — no ground taken",
+  battle_forfeit: "⚔️ forfeited the duel (no call)",
   no_proposal: "sat out this round",
-  takeover_win: "👑 TAKEOVER — absorbed the enemy guild!",
-  takeover_lost: "💀 absorbed by the enemy guild",
+  takeover_win: "👑 CONQUEST — the rival guild falls!",
+  takeover_lost: "💀 conquered by a rival guild",
 };
 
 export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {

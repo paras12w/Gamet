@@ -1,3 +1,5 @@
+import type { FlagOptions } from "./types";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
@@ -8,11 +10,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export function createGuild(name: string, username: string) {
+export function createGuild(name: string, username: string, flagColor?: string, flagDecal?: string) {
   return request<{ guildId: string; leaderSecret: string }>("/guilds", {
     method: "POST",
-    body: JSON.stringify({ name, username }),
+    body: JSON.stringify({ name, username, flagColor, flagDecal }),
   });
+}
+
+export function getFlagOptions() {
+  return request<FlagOptions>("/flags");
 }
 
 export function joinGuild(guildId: string, username: string) {

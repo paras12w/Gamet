@@ -1,17 +1,20 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { CONFIG } from "./config.js";
+import { CONFIG, FLAG_COLORS, FLAG_DECALS } from "./config.js";
 import { cellKey, chebyshevDistance, inBounds, neighborsOf, neutralCastlePositions, parseKey } from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
 import { insertGuildRow, loadAllGuildRows, recordSessionResult, updateGuildMembers, updateGuildTokens } from "./db.js";
 import type { Battle, Cell, CellKey, GameStateSnapshot, Guild, PublicGuild, RoundResultEntry } from "./types.js";
 
-const GUILD_COLORS = [
-  "#00e5a8", "#ff5c8a", "#4d9bff", "#ffb020", "#c47bff", "#ff7043",
-  "#2dd4bf", "#f472b6", "#60a5fa", "#facc15", "#a78bfa", "#fb923c",
-];
-
 function randomToken(): string {
   return randomBytes(24).toString("hex");
+}
+
+function randomFlagColor(): string {
+  return FLAG_COLORS[Math.floor(Math.random() * FLAG_COLORS.length)];
+}
+
+function randomFlagDecal(): string {
+  return FLAG_DECALS[Math.floor(Math.random() * FLAG_DECALS.length)];
 }
 
 export class GameEngine {
@@ -58,7 +61,8 @@ export class GameEngine {
         leaderUsername: row.leader_username,
         leaderSecret: row.leader_secret,
         members: JSON.parse(row.members),
-        color: GUILD_COLORS[this.guilds.size % GUILD_COLORS.length],
+        color: row.color,
+        flagDecal: row.flag_decal,
         tokens: row.tokens,
         hq,
         squares: new Set([hq]),
@@ -96,7 +100,12 @@ export class GameEngine {
 
   // ---------- guild lifecycle ----------
 
-  createGuild(name: string, leaderUsername: string): { guild: Guild; secret: string } {
+  createGuild(
+    name: string,
+    leaderUsername: string,
+    flagColor?: string,
+    flagDecal?: string
+  ): { guild: Guild; secret: string } {
     const hq = this.pickHqCell();
     const secret = randomToken();
     const guild: Guild = {
@@ -105,7 +114,8 @@ export class GameEngine {
       leaderUsername: leaderUsername.trim().slice(0, 30),
       leaderSecret: secret,
       members: [leaderUsername.trim().slice(0, 30)],
-      color: GUILD_COLORS[this.guilds.size % GUILD_COLORS.length],
+      color: flagColor && FLAG_COLORS.includes(flagColor) ? flagColor : randomFlagColor(),
+      flagDecal: flagDecal && FLAG_DECALS.includes(flagDecal) ? flagDecal : randomFlagDecal(),
       tokens: 0,
       hq,
       squares: new Set([hq]),
@@ -125,6 +135,7 @@ export class GameEngine {
       leader_username: guild.leaderUsername,
       leader_secret: guild.leaderSecret,
       color: guild.color,
+      flag_decal: guild.flagDecal,
       members: JSON.stringify(guild.members),
       tokens: guild.tokens,
       created_at: guild.createdAt,
@@ -395,6 +406,7 @@ export class GameEngine {
       leaderUsername: g.leaderUsername,
       members: g.members,
       color: g.color,
+      flagDecal: g.flagDecal,
       tokens: g.tokens,
       hq: g.hq,
       squareCount: g.squares.size,

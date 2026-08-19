@@ -33,6 +33,11 @@ unreachable.
 
 ## How it plays
 
+New players pick a name, read a one-time rules page, then choose to play
+solo (a lone one-person warband), join an existing guild, or found a new
+guild and design its banner (a color plus an emblem, picked from a curated
+set - validated server-side so a client can't send an arbitrary flag).
+
 - **Guilds & HQs.** Anyone can found a guild (they become its leader) or
   join an existing one. New guilds are dropped onto a random, unclaimed spot
   on the grid as their headquarters.

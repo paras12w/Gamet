@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { FLAG_COLORS, FLAG_DECALS } from "./config.js";
 import type { GameEngine } from "./gameEngine.js";
 
 export function buildRouter(engine: GameEngine): Router {
@@ -8,11 +9,20 @@ export function buildRouter(engine: GameEngine): Router {
     res.json(engine.getSnapshot());
   });
 
+  router.get("/flags", (_req, res) => {
+    res.json({ colors: FLAG_COLORS, decals: FLAG_DECALS });
+  });
+
   router.post("/guilds", (req, res) => {
-    const { name, username } = req.body ?? {};
+    const { name, username, flagColor, flagDecal } = req.body ?? {};
     if (typeof name !== "string" || !name.trim()) return res.status(400).json({ error: "Guild name is required" });
     if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
-    const { guild, secret } = engine.createGuild(name, username);
+    const { guild, secret } = engine.createGuild(
+      name,
+      username,
+      typeof flagColor === "string" ? flagColor : undefined,
+      typeof flagDecal === "string" ? flagDecal : undefined
+    );
     res.status(201).json({ guildId: guild.id, leaderSecret: secret });
   });
 

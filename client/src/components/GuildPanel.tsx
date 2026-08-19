@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { GameStateSnapshot, Identity } from "../types";
 import { proposeTicker } from "../api";
+import { FlagBadge } from "./icons";
 
 export function GuildPanel({
   snapshot,
@@ -20,6 +21,7 @@ export function GuildPanel({
 
   const isLeader = !!identity.leaderSecret;
   const streakEntries = Object.entries(guild.streaks).filter(([, v]) => v > 0);
+  const rank = [...snapshot.guilds].sort((a, b) => b.squareCount - a.squareCount).findIndex((g) => g.id === guild.id) + 1;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,17 +41,21 @@ export function GuildPanel({
   return (
     <div className="panel guild-panel">
       <div className="panel__header">
-        <span className="swatch" style={{ background: guild.color }} />
+        <FlagBadge color={guild.color} decal={guild.flagDecal} size={26} />
         <h2>{guild.name}</h2>
         {!guild.alive && <span className="badge badge--closed">ABSORBED</span>}
       </div>
       <div className="guild-panel__stats">
         <div>
-          <span className="stat-label">Squares</span>
+          <span className="stat-label">Rank</span>
+          <span className="stat-value">#{rank}</span>
+        </div>
+        <div>
+          <span className="stat-label">Fields</span>
           <span className="stat-value">{guild.squareCount}</span>
         </div>
         <div>
-          <span className="stat-label">Tokens</span>
+          <span className="stat-label">Gold</span>
           <span className="stat-value">{guild.tokens}</span>
         </div>
         <div>
@@ -65,7 +71,7 @@ export function GuildPanel({
             const opp = snapshot.guilds.find((g) => g.id === oppId);
             return (
               <div key={oppId} className="streak-row">
-                ⚔ {v} win streak vs {opp?.name ?? "unknown"} {v >= 1 && <span className="streak-warn">(takeover at 2)</span>}
+                ⚔ {v} duel win{v > 1 ? "s" : ""} vs {opp?.name ?? "unknown"} <span className="streak-warn">(conquest at 2)</span>
               </div>
             );
           })}
@@ -75,10 +81,11 @@ export function GuildPanel({
       <div className="guild-panel__action">
         {isLeader ? (
           guild.hasProposal ? (
-            <div className="locked-in">🔒 Ticker locked in for this round</div>
+            <div className="locked-in">🔒 Your call is sealed for this round</div>
           ) : (
             <form onSubmit={submit} className="ticker-form">
               <label htmlFor="ticker">Call a ticker for this round</label>
+              <p className="ticker-form__hint">A rising call grows your lands by one field.</p>
               <div className="ticker-form__row">
                 <input
                   id="ticker"
@@ -96,12 +103,12 @@ export function GuildPanel({
             </form>
           )
         ) : (
-          <div className="locked-in">Waiting on {guild.leaderUsername} to call a stock…</div>
+          <div className="locked-in">Awaiting {guild.leaderUsername}'s call…</div>
         )}
       </div>
 
       <button className="link-button" onClick={onLeave}>
-        Switch guild
+        Abandon this banner
       </button>
     </div>
   );

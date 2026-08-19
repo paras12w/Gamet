@@ -1,7 +1,7 @@
 export const CONFIG = {
   PORT: Number(process.env.PORT ?? 4000),
 
-  GRID_SIZE: Number(process.env.GRID_SIZE ?? 19),
+  GRID_SIZE: Number(process.env.GRID_SIZE ?? 25),
 
   // A full round: guild leaders propose a ticker, price is tracked, expansion/battles
   // resolve at the end. Default 3 minutes; override for local testing.
@@ -20,7 +20,7 @@ export const CONFIG = {
   SESSION_WINNER_TOKENS: Number(process.env.SESSION_WINNER_TOKENS ?? 3),
 
   // Minimum Chebyshev distance enforced between randomly-placed HQs.
-  MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 5),
+  MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 6),
 
   // How often the background price-simulation tick advances (ms).
   PRICE_TICK_MS: Number(process.env.PRICE_TICK_MS ?? 4000),
@@ -33,3 +33,21 @@ export const CONFIG = {
 };
 
 export const NEUTRAL_CASTLE_COUNT = 4;
+
+// Heraldry options for guild flags. Kept in sync by hand with
+// client/src/data/flags.ts - validated server-side so a client can't send
+// an arbitrary color/emblem.
+export const FLAG_COLORS = [
+  "#8c1c24", // crimson
+  "#2f5233", // forest green
+  "#1f3a5f", // royal blue
+  "#c9a227", // gold
+  "#5b2a6e", // royal purple
+  "#3d3d3d", // iron black
+  "#e8dfc4", // ivory
+  "#6b3e26", // leather brown
+  "#1f5f5b", // teal
+  "#a1521c", // burnt orange
+];
+
+export const FLAG_DECALS = ["🦁", "🦅", "🐺", "🐉", "⚔️", "🛡️", "👑", "✝️", "⭐", "🔥", "🐴", "🪓"];

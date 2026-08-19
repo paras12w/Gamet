@@ -50,7 +50,8 @@ export interface Guild {
   leaderUsername: string;
   leaderSecret: string; // simple bearer-style token the leader holds to authenticate
   members: string[];
-  color: string;
+  color: string; // flag background color
+  flagDecal: string; // flag emblem (one of FLAG_DECALS)
   tokens: number; // persists across sessions
   hq: CellKey;
   squares: Set<CellKey>; // includes hq; reset each session
@@ -66,6 +67,7 @@ export interface PublicGuild {
   leaderUsername: string;
   members: string[];
   color: string;
+  flagDecal: string;
   tokens: number;
   hq: CellKey;
   squareCount: number;

@@ -16,6 +16,7 @@ db.exec(`
     leader_username TEXT NOT NULL,
     leader_secret TEXT NOT NULL,
     color TEXT NOT NULL,
+    flag_decal TEXT NOT NULL DEFAULT '🛡️',
     members TEXT NOT NULL DEFAULT '[]',
     tokens INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
@@ -35,12 +36,19 @@ db.exec(`
   );
 `);
 
+// Guard for databases created before flag_decal existed.
+const guildColumns = db.prepare(`PRAGMA table_info(guilds)`).all() as { name: string }[];
+if (!guildColumns.some((c) => c.name === "flag_decal")) {
+  db.exec(`ALTER TABLE guilds ADD COLUMN flag_decal TEXT NOT NULL DEFAULT '🛡️'`);
+}
+
 export interface GuildRow {
   id: string;
   name: string;
   leader_username: string;
   leader_secret: string;
   color: string;
+  flag_decal: string;
   members: string;
   tokens: number;
   created_at: number;
@@ -48,8 +56,8 @@ export interface GuildRow {
 
 export function insertGuildRow(row: GuildRow): void {
   db.prepare(
-    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, members, tokens, created_at)
-     VALUES (@id, @name, @leader_username, @leader_secret, @color, @members, @tokens, @created_at)`
+    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, created_at)
+     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @created_at)`
   ).run(row);
 }
 

@@ -1,9 +1,21 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { CONFIG, FLAG_COLORS, FLAG_DECALS, NEUTRAL_CASTLE_COUNT } from "./config.js";
-import { blockCells, blockInBounds, cellKey, chebyshevDistance, inBounds, neighborsOf, neutralCastlePositions, parseKey } from "./grid.js";
+import { CHAT_HISTORY_LIMIT, CONFIG, FLAG_COLORS, FLAG_DECALS, NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING } from "./config.js";
+import {
+  blockCells,
+  blockInBounds,
+  cellKey,
+  chebyshevDistance,
+  inBounds,
+  isNearCenter,
+  neighborsOf,
+  parseKey,
+  scatterNeutralPositions,
+} from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
 import { insertGuildRow, loadAllGuildRows, recordSessionResult, updateGuildMembers, updateGuildTokens } from "./db.js";
-import type { Battle, Cell, CellKey, GameStateSnapshot, Guild, PublicGuild, RoundResultEntry } from "./types.js";
+import type { Battle, Cell, CellKey, ChatMessage, GameStateSnapshot, Guild, PublicGuild, ResourceKind, RoundResultEntry } from "./types.js";
+
+const RESOURCE_KINDS: ResourceKind[] = ["keep", "lumber", "mine"];
 
 function randomToken(): string {
   return randomBytes(24).toString("hex");
@@ -15,6 +27,10 @@ function randomFlagColor(): string {
 
 function randomFlagDecal(): string {
   return FLAG_DECALS[Math.floor(Math.random() * FLAG_DECALS.length)];
+}
+
+function randomResourceKind(): ResourceKind {
+  return RESOURCE_KINDS[Math.floor(Math.random() * RESOURCE_KINDS.length)];
 }
 
 export class GameEngine {
@@ -29,7 +45,9 @@ export class GameEngine {
   lastRoundResults: RoundResultEntry[] = [];
   lastSessionWinner: { guildId: string; guildName: string } | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private chats = new Map<string, ChatMessage[]>();
   onUpdate: (() => void) | null = null;
+  onChatMessage: ((message: ChatMessage) => void) | null = null;
 
   constructor() {
     this.initGrid();
@@ -41,12 +59,19 @@ export class GameEngine {
 
   private initGrid(): void {
     this.grid.clear();
-    this.castles = neutralCastlePositions(NEUTRAL_CASTLE_COUNT);
+    this.castles = scatterNeutralPositions(NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING);
     const castleSet = new Set(this.castles);
     for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
       for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
         const key = cellKey(x, y);
-        this.grid.set(key, { x, y, type: castleSet.has(key) ? "castle" : "empty", owner: null });
+        const isCastle = castleSet.has(key);
+        this.grid.set(key, {
+          x,
+          y,
+          type: isCastle ? "castle" : "empty",
+          owner: null,
+          resourceKind: isCastle ? randomResourceKind() : undefined,
+        });
       }
     }
   }
@@ -101,6 +126,7 @@ export class GameEngine {
       if (attempt === 250) minDistance = Math.max(1, Math.floor(minDistance / 2));
       const x = Math.floor(Math.random() * (CONFIG.GRID_SIZE - 1));
       const y = Math.floor(Math.random() * (CONFIG.GRID_SIZE - 1));
+      if (isNearCenter(x + 0.5, y + 0.5)) continue; // keep the map's middle as contested, unowned ground
       if (!isFreeBlock(x, y)) continue;
       const key = cellKey(x, y);
       if (existingHqs.every((hq) => chebyshevDistance(hq, key) >= minDistance)) return blockCells(x, y);
@@ -168,6 +194,31 @@ export class GameEngine {
     }
     this.emitUpdate();
     return guild;
+  }
+
+  // ---------- guild chat ----------
+
+  getChatHistory(guildId: string): ChatMessage[] {
+    return this.chats.get(guildId) ?? [];
+  }
+
+  postChatMessage(guildId: string, username: string, text: string): ChatMessage | null {
+    const guild = this.guilds.get(guildId);
+    const cleanText = text.trim().slice(0, 300);
+    if (!guild || !cleanText) return null;
+    const message: ChatMessage = {
+      id: randomUUID(),
+      guildId,
+      username: username.trim().slice(0, 30) || "Unknown",
+      text: cleanText,
+      at: Date.now(),
+    };
+    const history = this.chats.get(guildId) ?? [];
+    history.push(message);
+    if (history.length > CHAT_HISTORY_LIMIT) history.shift();
+    this.chats.set(guildId, history);
+    this.onChatMessage?.(message);
+    return message;
   }
 
   async proposeTicker(guildId: string, leaderSecret: string, ticker: string): Promise<{ ok: true } | { ok: false; error: string }> {

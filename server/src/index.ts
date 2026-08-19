@@ -9,7 +9,7 @@ import { WebSocketServer } from "ws";
 import { CONFIG } from "./config.js";
 import { GameEngine } from "./gameEngine.js";
 import { buildRouter } from "./routes.js";
-import { broadcastState } from "./ws.js";
+import { broadcastChat, broadcastState } from "./ws.js";
 import { priceEngine } from "./priceEngine.js";
 
 const app = express();
@@ -40,6 +40,7 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
 engine.onUpdate = () => broadcastState(wss, engine.getSnapshot());
+engine.onChatMessage = (message) => broadcastChat(wss, message);
 
 wss.on("connection", (socket) => {
   socket.send(JSON.stringify({ type: "state", snapshot: engine.getSnapshot() }));

@@ -33,6 +33,10 @@ export const CONFIG = {
 };
 
 export const NEUTRAL_CASTLE_COUNT = 8;
+export const NEUTRAL_MIN_SPACING = 4;
+
+// Chat history kept per guild (in-memory only, doesn't survive a restart).
+export const CHAT_HISTORY_LIMIT = 100;
 
 // Heraldry options for guild flags. Served to the client via GET /api/flags
 // and re-validated here on guild creation so a client can't send an

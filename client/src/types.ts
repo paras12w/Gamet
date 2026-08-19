@@ -1,10 +1,13 @@
 export type CellType = "empty" | "castle" | "hq";
 
+export type ResourceKind = "keep" | "lumber" | "mine";
+
 export interface Cell {
   x: number;
   y: number;
   type: CellType;
   owner: string | null;
+  resourceKind?: ResourceKind;
 }
 
 export interface Battle {
@@ -78,4 +81,12 @@ export interface Identity {
 export interface FlagOptions {
   colors: string[];
   decals: string[];
+}
+
+export interface ChatMessage {
+  id: string;
+  guildId: string;
+  username: string;
+  text: string;
+  at: number;
 }

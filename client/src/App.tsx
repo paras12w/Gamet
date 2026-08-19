@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import type { Identity } from "./types";
 import { useGameSocket } from "./hooks/useGameSocket";
+import { useToasts } from "./hooks/useToasts";
 import { UsernameScreen } from "./components/UsernameScreen";
 import { RulesScreen } from "./components/RulesScreen";
 import { ModeSelectScreen } from "./components/ModeSelectScreen";
 import { TickerTape } from "./components/TickerTape";
 import { Timer } from "./components/Timer";
 import { GridView } from "./components/GridView";
-import { GuildPanel } from "./components/GuildPanel";
+import { GuildBar } from "./components/GuildBar";
+import { GuildMenu } from "./components/GuildMenu";
 import { Leaderboard } from "./components/Leaderboard";
 import { RoundLog } from "./components/RoundLog";
+import { ToastStack } from "./components/ToastStack";
 
 const STORAGE_KEY = "gamet:identity";
 
@@ -24,8 +27,10 @@ function loadIdentity(): Identity {
 }
 
 export default function App() {
-  const { snapshot, connected } = useGameSocket();
+  const { snapshot, connected, chatMessages } = useGameSocket();
+  const { toasts, dismiss } = useToasts(snapshot);
   const [identity, setIdentityState] = useState<Identity>(loadIdentity);
+  const [guildMenuOpen, setGuildMenuOpen] = useState(false);
 
   const setIdentity = (next: Identity) => {
     setIdentityState(next);
@@ -60,11 +65,23 @@ export default function App() {
           <GridView snapshot={snapshot} myGuildId={identity.guildId} />
           <aside className="app__sidebar">
             <Timer snapshot={snapshot} />
-            <GuildPanel snapshot={snapshot} identity={identity} onLeave={() => setIdentity({ ...identity, guildId: null, leaderSecret: null })} />
+            <GuildBar snapshot={snapshot} identity={identity} onOpenMenu={() => setGuildMenuOpen(true)} />
             <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
             <RoundLog snapshot={snapshot} />
           </aside>
         </main>
+        {guildMenuOpen && (
+          <GuildMenu
+            snapshot={snapshot}
+            identity={identity}
+            chatMessages={chatMessages}
+            onClose={() => setGuildMenuOpen(false)}
+            onLeave={() => {
+              setGuildMenuOpen(false);
+              setIdentity({ ...identity, guildId: null, leaderSecret: null });
+            }}
+          />
+        )}
       </>
     );
   } else {
@@ -74,6 +91,7 @@ export default function App() {
   return (
     <div className="app">
       {!connected && <div className="conn-banner">Reconnecting to the exchange…</div>}
+      <ToastStack toasts={toasts} onDismiss={dismiss} />
       {screen}
     </div>
   );

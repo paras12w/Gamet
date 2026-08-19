@@ -44,5 +44,18 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ ok: true });
   });
 
+  router.get("/guilds/:id/chat", (req, res) => {
+    res.json({ messages: engine.getChatHistory(req.params.id) });
+  });
+
+  router.post("/guilds/:id/chat", (req, res) => {
+    const { username, text } = req.body ?? {};
+    if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
+    if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Message text is required" });
+    const message = engine.postChatMessage(req.params.id, username, text);
+    if (!message) return res.status(404).json({ error: "Guild not found" });
+    res.status(201).json({ message });
+  });
+
   return router;
 }

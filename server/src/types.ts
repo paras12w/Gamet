@@ -2,11 +2,22 @@ export type CellKey = string; // `${x},${y}`
 
 export type CellType = "empty" | "castle" | "hq";
 
+export type ResourceKind = "keep" | "lumber" | "mine";
+
 export interface Cell {
   x: number;
   y: number;
   type: CellType;
   owner: string | null; // guild id
+  resourceKind?: ResourceKind; // only set when type === "castle"
+}
+
+export interface ChatMessage {
+  id: string;
+  guildId: string;
+  username: string;
+  text: string;
+  at: number;
 }
 
 export interface Proposal {

@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import type { GameStateSnapshot } from "../types";
+import type { ChatMessage, GameStateSnapshot } from "../types";
+
+const CHAT_BUFFER_LIMIT = 300;
 
 export function useGameSocket() {
   const [snapshot, setSnapshot] = useState<GameStateSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const retryDelay = useRef(1000);
 
   useEffect(() => {
@@ -22,6 +25,7 @@ export function useGameSocket() {
       socket.onmessage = (event) => {
         const msg = JSON.parse(event.data);
         if (msg.type === "state") setSnapshot(msg.snapshot);
+        else if (msg.type === "chat") setChatMessages((prev) => [...prev, msg.message].slice(-CHAT_BUFFER_LIMIT));
       };
       socket.onclose = () => {
         setConnected(false);
@@ -40,5 +44,5 @@ export function useGameSocket() {
     };
   }, []);
 
-  return { snapshot, connected };
+  return { snapshot, connected, chatMessages };
 }

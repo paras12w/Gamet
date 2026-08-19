@@ -46,22 +46,37 @@ export function blockInBounds(x: number, y: number): boolean {
   return inBounds(x, y) && inBounds(x + 1, y + 1);
 }
 
-/** Evenly-spaced ring of neutral keep spots, scaled to grid size. */
-export function neutralCastlePositions(count: number): CellKey[] {
+/** Chebyshev distance from a cell to the grid's center point. */
+function distanceFromCenter(x: number, y: number): number {
+  const c = (CONFIG.GRID_SIZE - 1) / 2;
+  return Math.max(Math.abs(x - c), Math.abs(y - c));
+}
+
+/** Radius (in cells) of the center zone guild HQs are kept out of, so
+ * founding a guild doesn't hand you the middle of the map for free -
+ * the center stays contested ground full of neutral resource spots. */
+export function centerExclusionRadius(): number {
+  return (CONFIG.GRID_SIZE - 1) * 0.22;
+}
+
+export function isNearCenter(x: number, y: number): boolean {
+  return distanceFromCenter(x, y) < centerExclusionRadius();
+}
+
+/** Randomly scattered neutral resource spots, spaced apart from each other.
+ * Re-rolled every session (called fresh from initGrid), so the map's
+ * contested points move around instead of sitting in the same ring. */
+export function scatterNeutralPositions(count: number, minSpacing: number): CellKey[] {
   const size = CONFIG.GRID_SIZE;
-  const center = (size - 1) / 2;
-  const radius = center * 0.72;
-  const seen = new Set<CellKey>();
   const positions: CellKey[] = [];
-  for (let i = 0; i < count; i++) {
-    const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
-    const x = Math.min(size - 1, Math.max(0, Math.round(center + radius * Math.cos(angle))));
-    const y = Math.min(size - 1, Math.max(0, Math.round(center + radius * Math.sin(angle))));
+  let attempts = 0;
+  while (positions.length < count && attempts < count * 300) {
+    attempts++;
+    const x = Math.floor(Math.random() * size);
+    const y = Math.floor(Math.random() * size);
     const key = cellKey(x, y);
-    if (!seen.has(key)) {
-      seen.add(key);
-      positions.push(key);
-    }
+    if (positions.some((p) => chebyshevDistance(p, key) < minSpacing)) continue;
+    positions.push(key);
   }
   return positions;
 }

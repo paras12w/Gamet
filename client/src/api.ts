@@ -1,4 +1,4 @@
-import type { FlagOptions } from "./types";
+import type { ChatMessage, FlagOptions } from "./types";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -32,5 +32,16 @@ export function proposeTicker(guildId: string, leaderSecret: string, ticker: str
   return request<{ ok: true }>(`/guilds/${guildId}/propose`, {
     method: "POST",
     body: JSON.stringify({ leaderSecret, ticker }),
+  });
+}
+
+export function getChatHistory(guildId: string) {
+  return request<{ messages: ChatMessage[] }>(`/guilds/${guildId}/chat`);
+}
+
+export function sendChatMessage(guildId: string, username: string, text: string) {
+  return request<{ message: ChatMessage }>(`/guilds/${guildId}/chat`, {
+    method: "POST",
+    body: JSON.stringify({ username, text }),
   });
 }

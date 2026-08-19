@@ -15,7 +15,18 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
             <span className="rules-item__icon">🌱</span>
             <div>
               <h3>Expand your holdings</h3>
-              <p>Call rises &mdash; your lands grow by one field. Call falls or flat &mdash; you hold your ground, nothing more.</p>
+              <p>Call rises &mdash; your guild earns a tile. Call falls or flat &mdash; you hold your ground, nothing more.</p>
+            </div>
+          </div>
+          <div className="rules-item">
+            <span className="rules-item__icon">🎒</span>
+            <div>
+              <h3>Bank &amp; place your tiles</h3>
+              <p>
+                Earned tiles go into your guild's bank instead of landing automatically. Anytime, your leader can place a
+                banked tile on any open field touching your existing territory. The bank holds at most <strong>5 tiles</strong>
+                &mdash; win another while it's full and that tile is destroyed instead of banked.
+              </p>
             </div>
           </div>
           <div className="rules-item">
@@ -24,7 +35,8 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
               <h3>Border skirmishes</h3>
               <p>
                 When your territory touches a rival's, the next round is a duel: whoever's call performed better claims the
-                contested field and marches one field further. Losing the duel means losing that field.
+                contested field, marches one field further, and earns a tile for the bank. Losing the duel means losing that
+                field.
               </p>
             </div>
           </div>

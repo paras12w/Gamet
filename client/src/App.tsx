@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Identity } from "./types";
+import { placeTile } from "./api";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { useToasts } from "./hooks/useToasts";
 import { useSound } from "./hooks/useSound";
@@ -37,7 +38,28 @@ export default function App() {
   const { toasts, dismiss } = useToasts(snapshot, identity.guildId, play);
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("board");
+  const [placementMode, setPlacementMode] = useState(false);
   const lastChatCount = useRef(0);
+
+  async function handlePlaceTile(x: number, y: number) {
+    if (!identity.guildId || !identity.leaderSecret) return;
+    try {
+      await placeTile(identity.guildId, identity.leaderSecret, x, y);
+      play("click");
+    } catch {
+      play("error");
+    } finally {
+      setPlacementMode(false);
+    }
+  }
+
+  function handleTogglePlacement() {
+    setPlacementMode((prev) => {
+      const next = !prev;
+      if (next) setMobileTab("board");
+      return next;
+    });
+  }
 
   const setIdentity = (next: Identity) => {
     setIdentityState(next);
@@ -89,12 +111,18 @@ export default function App() {
         </header>
         <main className="app__main">
           <div className={`app__board-pane${mobileTab === "board" ? " app__pane--active" : ""}`}>
-            <GridView snapshot={snapshot} myGuildId={identity.guildId} />
+            <GridView snapshot={snapshot} myGuildId={identity.guildId} placementMode={placementMode} onPlaceTile={handlePlaceTile} />
           </div>
           <aside className="app__sidebar">
             <Timer snapshot={snapshot} />
             <div className={`app__pane${mobileTab === "guild" ? " app__pane--active" : ""}`}>
-              <GuildBar snapshot={snapshot} identity={identity} onOpenMenu={() => setGuildMenuOpen(true)} />
+              <GuildBar
+                snapshot={snapshot}
+                identity={identity}
+                placementMode={placementMode}
+                onOpenMenu={() => setGuildMenuOpen(true)}
+                onTogglePlacement={handleTogglePlacement}
+              />
               <MiniMap snapshot={snapshot} myGuildId={identity.guildId} />
             </div>
             <div className={`app__pane${mobileTab === "rankings" ? " app__pane--active" : ""}`}>

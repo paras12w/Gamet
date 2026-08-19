@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { FLAG_COLORS, FLAG_DECALS } from "./config.js";
+import { cellKey } from "./grid.js";
 import type { GameEngine } from "./gameEngine.js";
 
 export function buildRouter(engine: GameEngine): Router {
@@ -40,6 +41,16 @@ export function buildRouter(engine: GameEngine): Router {
       return res.status(400).json({ error: "leaderSecret and ticker are required" });
     }
     const result = await engine.proposeTicker(req.params.id, leaderSecret, ticker);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/place-tile", (req, res) => {
+    const { leaderSecret, x, y } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof x !== "number" || typeof y !== "number") {
+      return res.status(400).json({ error: "leaderSecret, x, and y are required" });
+    }
+    const result = engine.placeTile(req.params.id, leaderSecret, cellKey(x, y));
     if (!result.ok) return res.status(400).json({ error: result.error });
     res.json({ ok: true });
   });

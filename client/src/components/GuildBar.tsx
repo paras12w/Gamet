@@ -4,14 +4,20 @@ import { proposeTicker } from "../api";
 import { FlagBadge } from "./icons";
 import { soundEngine } from "../lib/sound";
 
+export const MAX_PENDING_TILES = 5;
+
 export function GuildBar({
   snapshot,
   identity,
+  placementMode,
   onOpenMenu,
+  onTogglePlacement,
 }: {
   snapshot: GameStateSnapshot;
   identity: Identity;
+  placementMode: boolean;
   onOpenMenu: () => void;
+  onTogglePlacement: () => void;
 }) {
   const [ticker, setTicker] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +58,17 @@ export function GuildBar({
         </span>
         <span className="guild-bar__menu-hint">Guild Menu ▸</span>
       </button>
+
+      <div className="tile-bank">
+        <span className="tile-bank__label">
+          🎒 Tiles banked: {guild.pendingTiles}/{MAX_PENDING_TILES}
+        </span>
+        {isLeader && guild.pendingTiles > 0 && (
+          <button type="button" className={placementMode ? "tile-bank__place-btn tile-bank__place-btn--active" : "tile-bank__place-btn"} onClick={onTogglePlacement}>
+            {placementMode ? "Cancel" : "Place a tile ▸"}
+          </button>
+        )}
+      </div>
 
       {isLeader ? (
         guild.hasProposal ? (

@@ -19,6 +19,12 @@ export const CONFIG = {
   // Tokens awarded to the session-winning guild.
   SESSION_WINNER_TOKENS: Number(process.env.SESSION_WINNER_TOKENS ?? 3),
 
+  // A won round or battle earns a tile into the guild's bank instead of
+  // auto-placing it; the leader places banked tiles wherever they like next
+  // to existing territory, whenever they like. Bank overflows destroy the
+  // newly-earned tile instead of growing past this cap.
+  MAX_PENDING_TILES: Number(process.env.MAX_PENDING_TILES ?? 5),
+
   // Minimum Chebyshev distance enforced between randomly-placed HQs (2x2 blocks).
   MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 7),
 

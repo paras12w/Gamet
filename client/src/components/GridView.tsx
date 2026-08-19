@@ -32,7 +32,17 @@ function ResourceIcon({ kind, owner, size }: { kind: ResourceKind; owner: { colo
   return <NeutralCastleIcon size={size} />;
 }
 
-export function GridView({ snapshot, myGuildId }: { snapshot: GameStateSnapshot; myGuildId: string | null }) {
+export function GridView({
+  snapshot,
+  myGuildId,
+  placementMode,
+  onPlaceTile,
+}: {
+  snapshot: GameStateSnapshot;
+  myGuildId: string | null;
+  placementMode: boolean;
+  onPlaceTile: (x: number, y: number) => void;
+}) {
   const guildsById = useMemo(() => new Map(snapshot.guilds.map((g) => [g.id, g])), [snapshot.guilds]);
   const cellsByKey = useMemo(() => new Map(snapshot.cells.map((c) => [`${c.x},${c.y}`, c])), [snapshot.cells]);
   const [selectedKeep, setSelectedKeep] = useState<string | null>(null);
@@ -50,10 +60,26 @@ export function GridView({ snapshot, myGuildId }: { snapshot: GameStateSnapshot;
   const selectedOwner = selectedCell?.owner ? guildsById.get(selectedCell.owner) : null;
   const selectedKind: ResourceKind = selectedCell?.resourceKind ?? "keep";
 
+  let popupStyle: React.CSSProperties | undefined;
+  if (selectedCell) {
+    const gridSize = snapshot.gridSize;
+    // Board is laid out row=x, col=y (server fills the grid x-outer/y-inner,
+    // which CSS grid auto-placement fills row-major) - so x drives the
+    // vertical position on screen and y drives the horizontal.
+    const topPct = Math.min(88, Math.max(12, ((selectedCell.x + 0.5) / gridSize) * 100));
+    const cellLeftPct = (selectedCell.y / gridSize) * 100;
+    const cellRightPct = ((selectedCell.y + 1) / gridSize) * 100;
+    const placeOnRight = cellLeftPct < 50;
+    popupStyle = placeOnRight
+      ? { left: `calc(${cellRightPct}% + 10px)`, top: `${topPct}%` }
+      : { right: `calc(${100 - cellLeftPct}% + 10px)`, top: `${topPct}%` };
+  }
+
   return (
     <div className="grid-view-wrap">
+      {placementMode && <div className="placement-hint">🎯 Choose an open field next to your territory to place a banked tile.</div>}
       <div
-        className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}`}
+        className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}${placementMode ? " grid-view--placing" : ""}`}
         style={{ gridTemplateColumns: `repeat(${snapshot.gridSize}, 1fr)`, gridTemplateRows: `repeat(${snapshot.gridSize}, 1fr)` }}
       >
         {snapshot.cells.map((cell) => {
@@ -76,6 +102,24 @@ export function GridView({ snapshot, myGuildId }: { snapshot: GameStateSnapshot;
           const roadE = owner ? cellsByKey.get(`${cell.x + 1},${cell.y}`)?.owner === owner.id : false;
           const roadW = owner ? cellsByKey.get(`${cell.x - 1},${cell.y}`)?.owner === owner.id : false;
 
+          const isEligible =
+            placementMode &&
+            !!myGuildId &&
+            cell.owner === null &&
+            [
+              `${cell.x + 1},${cell.y}`,
+              `${cell.x - 1},${cell.y}`,
+              `${cell.x},${cell.y + 1}`,
+              `${cell.x},${cell.y - 1}`,
+            ].some((n) => cellsByKey.get(n)?.owner === myGuildId);
+
+          const clickable = isEligible || isKeep;
+
+          function handleClick() {
+            if (isEligible) onPlaceTile(cell.x, cell.y);
+            else if (isKeep) setSelectedKeep(key);
+          }
+
           return (
             <div
               key={key}
@@ -85,17 +129,20 @@ export function GridView({ snapshot, myGuildId }: { snapshot: GameStateSnapshot;
                 cell.type === "hq" ? "grid-cell--hq" : "",
                 inBattle ? "grid-cell--battle" : "",
                 isMine ? "grid-cell--mine" : "",
-                isKeep ? "grid-cell--clickable" : "",
+                clickable ? "grid-cell--clickable" : "",
+                isEligible ? "grid-cell--eligible" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
-              onClick={isKeep ? () => setSelectedKeep(key) : undefined}
+              onClick={clickable ? handleClick : undefined}
               title={
-                owner
-                  ? `${owner.name}${cell.type === "hq" ? " — Castle" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
-                  : isKeep
-                    ? `${RESOURCE_LABEL[kind]} — click for details`
-                    : "Open Field"
+                isEligible
+                  ? "Place your banked tile here"
+                  : owner
+                    ? `${owner.name}${cell.type === "hq" ? " — Castle" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
+                    : isKeep
+                      ? `${RESOURCE_LABEL[kind]} — click for details`
+                      : "Open Field"
               }
             >
               {owner && cell.type === "empty" && <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} />}
@@ -112,21 +159,22 @@ export function GridView({ snapshot, myGuildId }: { snapshot: GameStateSnapshot;
 
               {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
               {cell.type === "empty" && owner && <KnightIcon color={owner.color} size={17} />}
+              {isEligible && <span className="grid-cell__place-marker">+</span>}
             </div>
           );
         })}
       </div>
 
       {selectedCell && (
-        <div className="keep-info">
+        <div className="keep-info keep-info--floating" style={popupStyle}>
           <button className="keep-info__close" onClick={() => setSelectedKeep(null)} aria-label="Close">
             ×
           </button>
           <div className="keep-info__badge">
             {selectedOwner ? (
-              <FlagBadge color={selectedOwner.color} decal={selectedOwner.flagDecal} size={30} />
+              <FlagBadge color={selectedOwner.color} decal={selectedOwner.flagDecal} size={56} />
             ) : (
-              <ResourceIcon kind={selectedKind} owner={null} size={30} />
+              <ResourceIcon kind={selectedKind} owner={null} size={56} />
             )}
           </div>
           <div>

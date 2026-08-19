@@ -12,6 +12,11 @@ const OUTCOME_LABEL: Record<RoundResultEntry["outcome"], string> = {
   takeover_lost: "💀 conquered by a rival guild",
 };
 
+const TILE_OUTCOME_LABEL: Record<"banked" | "destroyed", string> = {
+  banked: " · 🎒 tile banked",
+  destroyed: " · 🔥 tile destroyed (bank full)",
+};
+
 export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {
   const entries = snapshot.lastRoundResults;
 
@@ -32,7 +37,10 @@ export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {
                   {r.ticker} {up ? "▲" : "▼"} {(Math.abs(r.pctChange ?? 0) * 100).toFixed(2)}%
                 </span>
               )}
-              <span className="round-log__outcome">{OUTCOME_LABEL[r.outcome]}</span>
+              <span className="round-log__outcome">
+                {OUTCOME_LABEL[r.outcome]}
+                {r.tileOutcome && TILE_OUTCOME_LABEL[r.tileOutcome]}
+              </span>
             </div>
           );
         })}

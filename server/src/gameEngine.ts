@@ -98,6 +98,7 @@ export class GameEngine {
         tokens: row.tokens,
         sessionsWon: row.sessions_won,
         takeovers: row.takeovers,
+        pendingTiles: 0,
         hq: cellKey(0, 0), // overwritten by placeHq below
         squares: new Set(),
         proposal: null,
@@ -170,6 +171,7 @@ export class GameEngine {
       tokens: 0,
       sessionsWon: 0,
       takeovers: 0,
+      pendingTiles: 0,
       hq: cellKey(0, 0), // overwritten by placeHq below
       squares: new Set(),
       proposal: null,
@@ -277,6 +279,35 @@ export class GameEngine {
     return pick;
   }
 
+  /** Earns the guild a tile into its bank, or destroys it if the bank
+   * (MAX_PENDING_TILES) is already full. The leader places banked tiles
+   * later via placeTile(), wherever they like next to their territory. */
+  private grantTile(guild: Guild): "banked" | "destroyed" {
+    if (guild.pendingTiles >= CONFIG.MAX_PENDING_TILES) return "destroyed";
+    guild.pendingTiles += 1;
+    return "banked";
+  }
+
+  /** Leader spends one banked tile to claim a specific empty field
+   * adjacent to their existing territory. Can be called any time, not just
+   * during a round. */
+  placeTile(guildId: string, leaderSecret: string, key: CellKey): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can place a tile" };
+    if (guild.pendingTiles <= 0) return { ok: false, error: "No banked tiles to place" };
+    const cell = this.grid.get(key);
+    if (!cell) return { ok: false, error: "That field doesn't exist" };
+    if (cell.owner !== null) return { ok: false, error: "That field is already claimed" };
+    const adjacent = neighborsOf(key).some((n) => this.grid.get(n)?.owner === guild.id);
+    if (!adjacent) return { ok: false, error: "Must place next to your existing territory" };
+    cell.owner = guild.id;
+    guild.squares.add(key);
+    guild.pendingTiles -= 1;
+    this.emitUpdate();
+    return { ok: true };
+  }
+
   private doTakeover(winner: Guild, loser: Guild): void {
     for (const key of loser.squares) {
       const cell = this.grid.get(key);
@@ -349,7 +380,7 @@ export class GameEngine {
       winner.squares.add(loserCell);
       const capturedCell = this.grid.get(loserCell);
       if (capturedCell) capturedCell.owner = winner.id;
-      this.placeExpansion(winner);
+      const bonusTileOutcome = this.grantTile(winner);
 
       winner.streaks[loser.id] = (winner.streaks[loser.id] ?? 0) + 1;
       loser.streaks[winner.id] = 0;
@@ -360,9 +391,12 @@ export class GameEngine {
         this.doTakeover(winner, loser);
       }
 
+      const finalOutcomeA = takeover && a.id === winner.id ? "takeover_win" : takeover && a.id === loser.id ? "takeover_lost" : outcomeA;
+      const finalOutcomeB = takeover && b.id === winner.id ? "takeover_win" : takeover && b.id === loser.id ? "takeover_lost" : outcomeB;
+
       results.push(
-        this.buildResult(a, infoA, takeover && a.id === winner.id ? "takeover_win" : takeover && a.id === loser.id ? "takeover_lost" : outcomeA),
-        this.buildResult(b, infoB, takeover && b.id === winner.id ? "takeover_win" : takeover && b.id === loser.id ? "takeover_lost" : outcomeB)
+        this.buildResult(a, infoA, finalOutcomeA, a.id === winner.id ? bonusTileOutcome : undefined),
+        this.buildResult(b, infoB, finalOutcomeB, b.id === winner.id ? bonusTileOutcome : undefined)
       );
     }
     this.battles = stillPending;
@@ -376,8 +410,8 @@ export class GameEngine {
       const pct = pctById.get(guild.id)!;
       const info = priceInfo.get(guild.id)!;
       if (pct > 0) {
-        const placed = this.placeExpansion(guild);
-        results.push(this.buildResult(guild, info, placed ? "expanded" : "no_change"));
+        const tileOutcome = this.grantTile(guild);
+        results.push(this.buildResult(guild, info, "expanded", tileOutcome));
       } else {
         results.push(this.buildResult(guild, info, "no_change"));
       }
@@ -404,7 +438,12 @@ export class GameEngine {
     this.emitUpdate();
   }
 
-  private buildResult(guild: Guild, info: { ticker: string; start: number; end: number } | null, outcome: RoundResultEntry["outcome"]): RoundResultEntry {
+  private buildResult(
+    guild: Guild,
+    info: { ticker: string; start: number; end: number } | null,
+    outcome: RoundResultEntry["outcome"],
+    tileOutcome?: "banked" | "destroyed"
+  ): RoundResultEntry {
     return {
       guildId: guild.id,
       guildName: guild.name,
@@ -413,6 +452,7 @@ export class GameEngine {
       endPrice: info?.end ?? null,
       pctChange: info ? (info.end - info.start) / info.start : null,
       outcome,
+      tileOutcome,
     };
   }
 
@@ -465,6 +505,7 @@ export class GameEngine {
       guild.streaks = {};
       guild.proposal = null;
       guild.alive = true;
+      guild.pendingTiles = 0;
       this.placeHq(guild);
     }
     this.battles = [];
@@ -486,6 +527,7 @@ export class GameEngine {
       tokens: g.tokens,
       sessionsWon: g.sessionsWon,
       takeovers: g.takeovers,
+      pendingTiles: g.pendingTiles,
       createdAt: g.createdAt,
       hq: g.hq,
       squareCount: g.squares.size,

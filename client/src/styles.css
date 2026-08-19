@@ -272,6 +272,48 @@ h1, h2, h3 {
   filter: brightness(1.2);
 }
 
+.grid-view--placing .grid-cell:not(.grid-cell--eligible) {
+  filter: brightness(0.72) saturate(0.75);
+}
+
+.grid-cell--eligible {
+  box-shadow: inset 0 0 0 2px var(--gold-bright);
+  animation: eligible-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes eligible-pulse {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 2px var(--gold-bright);
+  }
+  50% {
+    box-shadow: inset 0 0 0 2px rgba(232, 196, 104, 0.35);
+  }
+}
+
+.grid-cell__place-marker {
+  position: relative;
+  z-index: 2;
+  color: var(--gold-bright);
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.placement-hint {
+  background-color: var(--panel);
+  background-image: var(--brick-tex);
+  background-size: var(--brick-size);
+  background-position: var(--brick-pos);
+  border: 1px solid var(--gold);
+  color: var(--gold-bright);
+  font-size: 0.82rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  text-align: center;
+}
+
 .hq-castle-wrap {
   position: absolute;
   top: 0;
@@ -321,6 +363,37 @@ h1, h2, h3 {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
+.keep-info--floating {
+  position: absolute;
+  z-index: 10;
+  width: 250px;
+  max-width: min(250px, 85vw);
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 16px 16px 14px;
+  transform: translateY(-50%);
+  animation: keep-info-pop 0.15s ease-out;
+}
+
+@keyframes keep-info-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+.keep-info--floating h3,
+.keep-info--floating .keep-info__status,
+.keep-info--floating .keep-info__desc,
+.keep-info--floating .keep-info__buff {
+  text-align: center;
+}
+
 .keep-info__close {
   position: absolute;
   top: 8px;
@@ -338,6 +411,11 @@ h1, h2, h3 {
 .keep-info__badge {
   flex-shrink: 0;
   padding-top: 2px;
+}
+
+.keep-info--floating .keep-info__badge {
+  margin-bottom: 8px;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
 }
 
 .keep-info h3 {
@@ -567,6 +645,26 @@ h1, h2, h3 {
   font-family: "Cinzel", serif;
 }
 
+.tile-bank {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.tile-bank__place-btn {
+  padding: 5px 10px;
+  font-size: 0.68rem;
+}
+
+.tile-bank__place-btn--active {
+  background: linear-gradient(180deg, var(--crimson), #7a2320 55%, #5c1a18);
+  color: var(--text);
+}
+
 /* ---------- Guild menu (toggleable drawer) ---------- */
 
 .guild-menu-overlay {
@@ -781,6 +879,11 @@ h1, h2, h3 {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   animation: toast-in 0.25s ease-out;
   cursor: pointer;
+}
+
+.toast--danger {
+  border-color: var(--crimson);
+  box-shadow: 0 4px 14px rgba(122, 35, 32, 0.5);
 }
 
 @keyframes toast-in {

@@ -53,6 +53,10 @@ export interface RoundResultEntry {
     | "no_proposal"
     | "takeover_win"
     | "takeover_lost";
+  // Set alongside "expanded"/"battle_won"/"takeover_win" when that win also
+  // earned a tile - "banked" if it fit in the guild's bank, "destroyed" if
+  // the bank was already full (MAX_PENDING_TILES).
+  tileOutcome?: "banked" | "destroyed";
 }
 
 export interface Guild {
@@ -66,6 +70,7 @@ export interface Guild {
   tokens: number; // persists across sessions
   sessionsWon: number; // persists across sessions
   takeovers: number; // persists across sessions
+  pendingTiles: number; // banked, unplaced tiles (0..MAX_PENDING_TILES); resets each session
   hq: CellKey;
   squares: Set<CellKey>; // includes hq; reset each session
   proposal: Proposal | null;
@@ -84,6 +89,7 @@ export interface PublicGuild {
   tokens: number;
   sessionsWon: number;
   takeovers: number;
+  pendingTiles: number;
   createdAt: number;
   hq: CellKey;
   squareCount: number;

@@ -5,7 +5,7 @@ import type { SoundName } from "../lib/sound";
 export interface Toast {
   id: string;
   text: string;
-  kind: "success" | "info";
+  kind: "success" | "info" | "danger";
 }
 
 /** Watches the snapshot for big moments (takeovers, a season ending, your
@@ -42,6 +42,15 @@ export function useToasts(snapshot: GameStateSnapshot | null, myGuildId: string 
           if (r.outcome === "expanded") playSound("expand");
           else if (r.outcome === "battle_won") playSound("battleWin");
           else if (r.outcome === "battle_lost" || r.outcome === "battle_forfeit" || r.outcome === "takeover_lost") playSound("battleLose");
+
+          if (r.tileOutcome === "destroyed") {
+            fresh.push({
+              id: `${roundKey}-${r.guildId}-tile-lost`,
+              kind: "danger",
+              text: "🔥 Your tile bank was already full (5/5) — this round's earned tile was destroyed!",
+            });
+            playSound("error");
+          }
         }
       }
     }

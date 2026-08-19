@@ -30,6 +30,8 @@ export type RoundOutcome =
   | "takeover_win"
   | "takeover_lost";
 
+export type TileOutcome = "banked" | "destroyed";
+
 export interface RoundResultEntry {
   guildId: string;
   guildName: string;
@@ -38,6 +40,7 @@ export interface RoundResultEntry {
   endPrice: number | null;
   pctChange: number | null;
   outcome: RoundOutcome;
+  tileOutcome?: TileOutcome;
 }
 
 export interface PublicGuild {
@@ -50,6 +53,7 @@ export interface PublicGuild {
   tokens: number;
   sessionsWon: number;
   takeovers: number;
+  pendingTiles: number;
   createdAt: number;
   hq: string;
   squareCount: number;

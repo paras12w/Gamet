@@ -35,6 +35,13 @@ export function proposeTicker(guildId: string, leaderSecret: string, ticker: str
   });
 }
 
+export function placeTile(guildId: string, leaderSecret: string, x: number, y: number) {
+  return request<{ ok: true }>(`/guilds/${guildId}/place-tile`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, x, y }),
+  });
+}
+
 export function getChatHistory(guildId: string) {
   return request<{ messages: ChatMessage[] }>(`/guilds/${guildId}/chat`);
 }

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { FLAG_COLORS, FLAG_DECALS } from "./config.js";
+import { FLAG_COLORS, FLAG_DECALS, GLOBAL_CHAT_ID } from "./config.js";
 import { cellKey } from "./grid.js";
 import type { GameEngine } from "./gameEngine.js";
 
@@ -65,6 +65,49 @@ export function buildRouter(engine: GameEngine): Router {
     if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Message text is required" });
     const message = engine.postChatMessage(req.params.id, username, text);
     if (!message) return res.status(404).json({ error: "Guild not found" });
+    res.status(201).json({ message });
+  });
+
+  router.post("/guilds/:id/propose-alliance", (req, res) => {
+    const { leaderSecret, targetGuildId } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof targetGuildId !== "string") {
+      return res.status(400).json({ error: "leaderSecret and targetGuildId are required" });
+    }
+    const result = engine.proposeAlliance(req.params.id, leaderSecret, targetGuildId);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/respond-alliance", (req, res) => {
+    const { leaderSecret, proposerGuildId, accept } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof proposerGuildId !== "string" || typeof accept !== "boolean") {
+      return res.status(400).json({ error: "leaderSecret, proposerGuildId, and accept are required" });
+    }
+    const result = engine.respondAlliance(req.params.id, leaderSecret, proposerGuildId, accept);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/break-alliance", (req, res) => {
+    const { leaderSecret, allyGuildId } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof allyGuildId !== "string") {
+      return res.status(400).json({ error: "leaderSecret and allyGuildId are required" });
+    }
+    const result = engine.breakAlliance(req.params.id, leaderSecret, allyGuildId);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.get("/chat/global", (_req, res) => {
+    res.json({ messages: engine.getChatHistory(GLOBAL_CHAT_ID) });
+  });
+
+  router.post("/chat/global", (req, res) => {
+    const { username, text } = req.body ?? {};
+    if (typeof username !== "string" || !username.trim()) return res.status(400).json({ error: "Username is required" });
+    if (typeof text !== "string" || !text.trim()) return res.status(400).json({ error: "Message text is required" });
+    const message = engine.postChatMessage(GLOBAL_CHAT_ID, username, text);
+    if (!message) return res.status(400).json({ error: "Message could not be sent" });
     res.status(201).json({ message });
   });
 

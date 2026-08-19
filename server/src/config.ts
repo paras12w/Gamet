@@ -36,7 +36,19 @@ export const CONFIG = {
   FINNHUB_API_KEY: process.env.FINNHUB_API_KEY ?? "",
 
   DB_PATH: process.env.DB_PATH ?? "./data/gamet.sqlite",
+
+  // How many past rounds' results the server keeps for the scrollable
+  // battle/round history feed.
+  ROUND_HISTORY_LIMIT: Number(process.env.ROUND_HISTORY_LIMIT ?? 20),
+
+  // How many guilds appear in the all-time Hall of Fame, ranked by tokens.
+  HALL_OF_FAME_LIMIT: Number(process.env.HALL_OF_FAME_LIMIT ?? 10),
 };
+
+// Reserved chat channel id for the realm-wide chat, open to everyone
+// (guild members and spectators alike) - separate from per-guild chat, which
+// is keyed by real guild ids in the same `chats` map.
+export const GLOBAL_CHAT_ID = "global";
 
 export const NEUTRAL_CASTLE_COUNT = 8;
 export const NEUTRAL_MIN_SPACING = 4;

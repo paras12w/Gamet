@@ -59,6 +59,22 @@ export interface RoundResultEntry {
   tileOutcome?: "banked" | "destroyed";
 }
 
+export interface RoundHistoryEntry {
+  sessionNumber: number;
+  roundNumber: number;
+  results: RoundResultEntry[];
+}
+
+export interface HallOfFameEntry {
+  guildId: string;
+  name: string;
+  color: string;
+  flagDecal: string;
+  tokens: number;
+  sessionsWon: number;
+  takeovers: number;
+}
+
 export interface Guild {
   id: string;
   name: string;
@@ -77,6 +93,8 @@ export interface Guild {
   streaks: Record<string, number>; // consecutive battle wins vs opponent guild id
   alive: boolean; // false once absorbed via takeover
   createdAt: number;
+  allies: Set<string>; // mutual non-aggression pacts; resets each session
+  allianceRequestsSent: Set<string>; // guild ids this guild has proposed an alliance to, awaiting response
 }
 
 export interface PublicGuild {
@@ -97,6 +115,9 @@ export interface PublicGuild {
   hasProposal: boolean;
   alive: boolean;
   streaks: Record<string, number>;
+  allies: string[];
+  incomingAllianceRequests: string[]; // guild ids proposing an alliance to this guild
+  outgoingAllianceRequests: string[]; // guild ids this guild has proposed to, awaiting response
 }
 
 export interface GameStateSnapshot {
@@ -111,5 +132,7 @@ export interface GameStateSnapshot {
   roundEndsAt: number;
   marketOpen: boolean;
   lastRoundResults: RoundResultEntry[];
+  roundHistory: RoundHistoryEntry[];
   lastSessionWinner: { guildId: string; guildName: string } | null;
+  hallOfFame: HallOfFameEntry[];
 }

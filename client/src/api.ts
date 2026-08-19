@@ -52,3 +52,35 @@ export function sendChatMessage(guildId: string, username: string, text: string)
     body: JSON.stringify({ username, text }),
   });
 }
+
+export function proposeAlliance(guildId: string, leaderSecret: string, targetGuildId: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/propose-alliance`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, targetGuildId }),
+  });
+}
+
+export function respondAlliance(guildId: string, leaderSecret: string, proposerGuildId: string, accept: boolean) {
+  return request<{ ok: true }>(`/guilds/${guildId}/respond-alliance`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, proposerGuildId, accept }),
+  });
+}
+
+export function breakAlliance(guildId: string, leaderSecret: string, allyGuildId: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/break-alliance`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, allyGuildId }),
+  });
+}
+
+export function getGlobalChatHistory() {
+  return request<{ messages: ChatMessage[] }>(`/chat/global`);
+}
+
+export function sendGlobalChatMessage(username: string, text: string) {
+  return request<{ message: ChatMessage }>(`/chat/global`, {
+    method: "POST",
+    body: JSON.stringify({ username, text }),
+  });
+}

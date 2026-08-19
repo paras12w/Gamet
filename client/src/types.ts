@@ -1,3 +1,6 @@
+// Reserved chat channel id for the realm-wide chat (mirrors server's GLOBAL_CHAT_ID).
+export const GLOBAL_CHAT_ID = "global";
+
 export type CellType = "empty" | "castle" | "hq";
 
 export type ResourceKind = "keep" | "lumber" | "mine";
@@ -43,6 +46,22 @@ export interface RoundResultEntry {
   tileOutcome?: TileOutcome;
 }
 
+export interface RoundHistoryEntry {
+  sessionNumber: number;
+  roundNumber: number;
+  results: RoundResultEntry[];
+}
+
+export interface HallOfFameEntry {
+  guildId: string;
+  name: string;
+  color: string;
+  flagDecal: string;
+  tokens: number;
+  sessionsWon: number;
+  takeovers: number;
+}
+
 export interface PublicGuild {
   id: string;
   name: string;
@@ -61,6 +80,9 @@ export interface PublicGuild {
   hasProposal: boolean;
   alive: boolean;
   streaks: Record<string, number>;
+  allies: string[];
+  incomingAllianceRequests: string[];
+  outgoingAllianceRequests: string[];
 }
 
 export interface GameStateSnapshot {
@@ -75,7 +97,9 @@ export interface GameStateSnapshot {
   roundEndsAt: number;
   marketOpen: boolean;
   lastRoundResults: RoundResultEntry[];
+  roundHistory: RoundHistoryEntry[];
   lastSessionWinner: { guildId: string; guildName: string } | null;
+  hallOfFame: HallOfFameEntry[];
 }
 
 export interface Identity {
@@ -83,6 +107,7 @@ export interface Identity {
   guildId: string | null;
   leaderSecret: string | null;
   rulesSeen: boolean;
+  spectating?: boolean;
 }
 
 export interface FlagOptions {

@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { CHAT_HISTORY_LIMIT, CONFIG, FLAG_COLORS, FLAG_DECALS, NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING } from "./config.js";
+import { CHAT_HISTORY_LIMIT, CONFIG, FLAG_COLORS, FLAG_DECALS, GLOBAL_CHAT_ID, NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING } from "./config.js";
 import {
   blockCells,
   blockInBounds,
@@ -13,6 +13,7 @@ import {
 } from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
 import {
+  getTopGuildsByTokens,
   insertGuildRow,
   loadAllGuildRows,
   recordSessionResult,
@@ -21,7 +22,19 @@ import {
   updateGuildTakeovers,
   updateGuildTokens,
 } from "./db.js";
-import type { Battle, Cell, CellKey, ChatMessage, GameStateSnapshot, Guild, PublicGuild, ResourceKind, RoundResultEntry } from "./types.js";
+import type {
+  Battle,
+  Cell,
+  CellKey,
+  ChatMessage,
+  GameStateSnapshot,
+  Guild,
+  HallOfFameEntry,
+  PublicGuild,
+  ResourceKind,
+  RoundHistoryEntry,
+  RoundResultEntry,
+} from "./types.js";
 
 const RESOURCE_KINDS: ResourceKind[] = ["keep", "lumber", "mine"];
 
@@ -51,6 +64,7 @@ export class GameEngine {
   roundStartedAt = Date.now();
   roundEndsAt = Date.now() + CONFIG.ROUND_DURATION_MS;
   lastRoundResults: RoundResultEntry[] = [];
+  roundHistory: RoundHistoryEntry[] = [];
   lastSessionWinner: { guildId: string; guildName: string } | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chats = new Map<string, ChatMessage[]>();
@@ -105,6 +119,8 @@ export class GameEngine {
         streaks: {},
         alive: true,
         createdAt: row.created_at,
+        allies: new Set(),
+        allianceRequestsSent: new Set(),
       };
       this.guilds.set(guild.id, guild);
       this.placeHq(guild);
@@ -178,6 +194,8 @@ export class GameEngine {
       streaks: {},
       alive: true,
       createdAt: Date.now(),
+      allies: new Set(),
+      allianceRequestsSent: new Set(),
     };
     this.guilds.set(guild.id, guild);
     this.placeHq(guild);
@@ -219,9 +237,10 @@ export class GameEngine {
   }
 
   postChatMessage(guildId: string, username: string, text: string): ChatMessage | null {
-    const guild = this.guilds.get(guildId);
+    const isGlobal = guildId === GLOBAL_CHAT_ID;
+    const guild = isGlobal ? null : this.guilds.get(guildId);
     const cleanText = text.trim().slice(0, 300);
-    if (!guild || !cleanText) return null;
+    if ((!isGlobal && !guild) || !cleanText) return null;
     const message: ChatMessage = {
       id: randomUUID(),
       guildId,
@@ -235,6 +254,72 @@ export class GameEngine {
     this.chats.set(guildId, history);
     this.onChatMessage?.(message);
     return message;
+  }
+
+  private postSystemMessage(guildId: string, text: string): void {
+    this.postChatMessage(guildId, "📯 Herald", text);
+  }
+
+  // ---------- guild alliances ----------
+
+  private areAllied(a: string, b: string): boolean {
+    return !!this.guilds.get(a)?.allies.has(b);
+  }
+
+  proposeAlliance(guildId: string, leaderSecret: string, targetGuildId: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    const target = this.guilds.get(targetGuildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can propose an alliance" };
+    if (!target || !target.alive) return { ok: false, error: "Target guild not found" };
+    if (target.id === guild.id) return { ok: false, error: "A guild cannot ally with itself" };
+    if (guild.allies.has(target.id)) return { ok: false, error: "Already allied with that guild" };
+    if (guild.allianceRequestsSent.has(target.id)) return { ok: false, error: "Alliance already proposed" };
+    guild.allianceRequestsSent.add(target.id);
+    this.postSystemMessage(guild.id, `⚜️ We have proposed an alliance with ${target.name}.`);
+    this.postSystemMessage(target.id, `⚜️ ${guild.name} has proposed an alliance with us. Respond in the Diplomacy tab.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  respondAlliance(
+    guildId: string,
+    leaderSecret: string,
+    proposerGuildId: string,
+    accept: boolean
+  ): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    const proposer = this.guilds.get(proposerGuildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can respond to alliances" };
+    if (!proposer || !proposer.allianceRequestsSent.has(guild.id)) return { ok: false, error: "No pending alliance request from that guild" };
+    proposer.allianceRequestsSent.delete(guild.id);
+    if (accept) {
+      guild.allies.add(proposer.id);
+      proposer.allies.add(guild.id);
+      this.battles = this.battles.filter((b) => !(b.guildA === guild.id && b.guildB === proposer.id) && !(b.guildA === proposer.id && b.guildB === guild.id));
+      this.postSystemMessage(guild.id, `🤝 An alliance has been formed with ${proposer.name}!`);
+      this.postSystemMessage(proposer.id, `🤝 An alliance has been formed with ${guild.name}!`);
+    } else {
+      this.postSystemMessage(guild.id, `⚔️ We have declined ${proposer.name}'s alliance offer.`);
+      this.postSystemMessage(proposer.id, `⚔️ ${guild.name} has declined our alliance offer.`);
+    }
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  breakAlliance(guildId: string, leaderSecret: string, allyGuildId: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    const ally = this.guilds.get(allyGuildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can break an alliance" };
+    if (!ally || !guild.allies.has(ally.id)) return { ok: false, error: "Not allied with that guild" };
+    guild.allies.delete(ally.id);
+    ally.allies.delete(guild.id);
+    this.postSystemMessage(guild.id, `💔 We have broken our alliance with ${ally.name}.`);
+    this.postSystemMessage(ally.id, `💔 ${guild.name} has broken our alliance.`);
+    this.emitUpdate();
+    return { ok: true };
   }
 
   async proposeTicker(guildId: string, leaderSecret: string, ticker: string): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -428,6 +513,10 @@ export class GameEngine {
 
     for (const guild of this.livingGuilds()) guild.proposal = null;
     this.lastRoundResults = results;
+    if (results.length > 0) {
+      this.roundHistory.push({ sessionNumber: this.sessionNumber, roundNumber: this.roundNumber, results });
+      if (this.roundHistory.length > CONFIG.ROUND_HISTORY_LIMIT) this.roundHistory.shift();
+    }
 
     this.roundNumber += 1;
     if (this.roundNumber > CONFIG.SESSION_ROUNDS) {
@@ -467,6 +556,7 @@ export class GameEngine {
         if (!otherKey) continue;
         const other = this.grid.get(otherKey);
         if (!other?.owner || other.owner === cell.owner) continue;
+        if (this.areAllied(cell.owner, other.owner)) continue;
         const edgeId = [key, otherKey].sort().join("|");
         if (existingEdges.has(edgeId)) continue;
         existingEdges.add(edgeId);
@@ -506,6 +596,8 @@ export class GameEngine {
       guild.proposal = null;
       guild.alive = true;
       guild.pendingTiles = 0;
+      guild.allies = new Set();
+      guild.allianceRequestsSent = new Set();
       this.placeHq(guild);
     }
     this.battles = [];
@@ -517,6 +609,7 @@ export class GameEngine {
   // ---------- snapshot ----------
 
   private toPublicGuild(g: Guild): PublicGuild {
+    const incomingAllianceRequests = [...this.guilds.values()].filter((other) => other.allianceRequestsSent.has(g.id)).map((other) => other.id);
     return {
       id: g.id,
       name: g.name,
@@ -535,7 +628,22 @@ export class GameEngine {
       hasProposal: !!g.proposal,
       alive: g.alive,
       streaks: g.streaks,
+      allies: [...g.allies],
+      incomingAllianceRequests,
+      outgoingAllianceRequests: [...g.allianceRequestsSent],
     };
+  }
+
+  private getHallOfFame(): HallOfFameEntry[] {
+    return getTopGuildsByTokens(CONFIG.HALL_OF_FAME_LIMIT).map((row) => ({
+      guildId: row.id,
+      name: row.name,
+      color: row.color,
+      flagDecal: row.flag_decal,
+      tokens: row.tokens,
+      sessionsWon: row.sessions_won,
+      takeovers: row.takeovers,
+    }));
   }
 
   getSnapshot(): GameStateSnapshot {
@@ -551,7 +659,9 @@ export class GameEngine {
       roundEndsAt: this.roundEndsAt,
       marketOpen: isMarketOpen(),
       lastRoundResults: this.lastRoundResults,
+      roundHistory: this.roundHistory,
       lastSessionWinner: this.lastSessionWinner,
+      hallOfFame: this.getHallOfFame(),
     };
   }
 

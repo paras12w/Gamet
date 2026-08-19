@@ -60,7 +60,7 @@ export function GuildBar({
       </button>
 
       <div className="tile-bank">
-        <span className="tile-bank__label">
+        <span className={guild.pendingTiles >= MAX_PENDING_TILES - 1 ? "tile-bank__label tile-bank__label--hot" : "tile-bank__label"}>
           🎒 Tiles banked: {guild.pendingTiles}/{MAX_PENDING_TILES}
         </span>
         {isLeader && guild.pendingTiles > 0 && (

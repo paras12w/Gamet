@@ -161,6 +161,11 @@ export function ModeSelectScreen({
           <h3>Found a Guild</h3>
           <p>Raise your own banner, choose its colors and emblem, and lead others into the field.</p>
         </button>
+        <button className="mode-card" onClick={() => setIdentity({ ...identity, guildId: null, leaderSecret: null, spectating: true })} disabled={busy}>
+          <span className="mode-card__icon">👁️</span>
+          <h3>Spectate</h3>
+          <p>Watch the realm unfold without raising a banner of your own. No calls, no claims — just the view.</p>
+        </button>
       </div>
       {error && <div className="form-error">{error}</div>}
     </div>

@@ -16,10 +16,12 @@ import { Leaderboard } from "./components/Leaderboard";
 import { RoundLog } from "./components/RoundLog";
 import { ToastStack } from "./components/ToastStack";
 import { MiniMap } from "./components/MiniMap";
+import { HallOfFame } from "./components/HallOfFame";
+import { GlobalChat } from "./components/GlobalChat";
 
 const STORAGE_KEY = "gamet:identity";
 
-type MobileTab = "board" | "guild" | "rankings";
+type MobileTab = "board" | "guild" | "rankings" | "chat";
 
 function loadIdentity(): Identity {
   try {
@@ -91,13 +93,14 @@ export default function App() {
   }, [chatMessages]);
 
   const inGuild = !!identity.username && !!identity.guildId;
+  const spectating = !!identity.username && !identity.guildId && !!identity.spectating;
 
   let screen: React.ReactNode;
   if (!identity.username) {
     screen = <UsernameScreen identity={identity} setIdentity={setIdentity} />;
   } else if (!identity.rulesSeen) {
     screen = <RulesScreen onContinue={() => setIdentity({ ...identity, rulesSeen: true })} />;
-  } else if (!inGuild) {
+  } else if (!inGuild && !spectating) {
     screen = <ModeSelectScreen snapshot={snapshot} identity={identity} setIdentity={setIdentity} />;
   } else if (snapshot) {
     screen = (
@@ -116,18 +119,39 @@ export default function App() {
           <aside className="app__sidebar">
             <Timer snapshot={snapshot} />
             <div className={`app__pane${mobileTab === "guild" ? " app__pane--active" : ""}`}>
-              <GuildBar
-                snapshot={snapshot}
-                identity={identity}
-                placementMode={placementMode}
-                onOpenMenu={() => setGuildMenuOpen(true)}
-                onTogglePlacement={handleTogglePlacement}
-              />
-              <MiniMap snapshot={snapshot} myGuildId={identity.guildId} />
+              {inGuild ? (
+                <>
+                  <GuildBar
+                    snapshot={snapshot}
+                    identity={identity}
+                    placementMode={placementMode}
+                    onOpenMenu={() => setGuildMenuOpen(true)}
+                    onTogglePlacement={handleTogglePlacement}
+                  />
+                  <MiniMap snapshot={snapshot} myGuildId={identity.guildId} />
+                </>
+              ) : (
+                <>
+                  <div className="panel spectator-panel">
+                    <div className="panel__header">
+                      <h2>👁️ Spectating</h2>
+                    </div>
+                    <p>You're watching the realm unfold without a banner of your own.</p>
+                    <button type="button" className="parchment-card__cta" onClick={() => setIdentity({ ...identity, spectating: false })}>
+                      Join the fray
+                    </button>
+                  </div>
+                  <MiniMap snapshot={snapshot} myGuildId={null} />
+                </>
+              )}
             </div>
             <div className={`app__pane${mobileTab === "rankings" ? " app__pane--active" : ""}`}>
               <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
               <RoundLog snapshot={snapshot} />
+              <HallOfFame snapshot={snapshot} />
+            </div>
+            <div className={`app__pane${mobileTab === "chat" ? " app__pane--active" : ""}`}>
+              <GlobalChat chatMessages={chatMessages} username={identity.username} />
             </div>
           </aside>
         </main>
@@ -136,13 +160,16 @@ export default function App() {
             <span className="mobile-tabbar__icon">🗺️</span>Board
           </button>
           <button type="button" className={mobileTab === "guild" ? "active" : ""} onClick={() => setMobileTab("guild")}>
-            <span className="mobile-tabbar__icon">🏳️</span>Guild
+            <span className="mobile-tabbar__icon">🏳️</span>{inGuild ? "Guild" : "You"}
           </button>
           <button type="button" className={mobileTab === "rankings" ? "active" : ""} onClick={() => setMobileTab("rankings")}>
             <span className="mobile-tabbar__icon">🏆</span>Ranks
           </button>
+          <button type="button" className={mobileTab === "chat" ? "active" : ""} onClick={() => setMobileTab("chat")}>
+            <span className="mobile-tabbar__icon">💬</span>Chat
+          </button>
         </nav>
-        {guildMenuOpen && (
+        {guildMenuOpen && inGuild && (
           <GuildMenu
             snapshot={snapshot}
             identity={identity}

@@ -86,6 +86,10 @@ export function loadAllGuildRows(): GuildRow[] {
   return db.prepare(`SELECT * FROM guilds`).all() as GuildRow[];
 }
 
+export function getTopGuildsByTokens(limit: number): GuildRow[] {
+  return db.prepare(`SELECT * FROM guilds ORDER BY tokens DESC, sessions_won DESC LIMIT ?`).all(limit) as GuildRow[];
+}
+
 export function recordSessionResult(sessionNumber: number, winnerGuildId: string | null, winnerGuildName: string | null): void {
   db.prepare(
     `INSERT OR REPLACE INTO session_history (session_number, winner_guild_id, winner_guild_name, ended_at)

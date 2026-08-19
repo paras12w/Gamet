@@ -45,6 +45,7 @@ export function GridView({
 }) {
   const guildsById = useMemo(() => new Map(snapshot.guilds.map((g) => [g.id, g])), [snapshot.guilds]);
   const cellsByKey = useMemo(() => new Map(snapshot.cells.map((c) => [`${c.x},${c.y}`, c])), [snapshot.cells]);
+  const rankedGuilds = useMemo(() => [...snapshot.guilds].sort((a, b) => b.squareCount - a.squareCount), [snapshot.guilds]);
   const [selectedKeep, setSelectedKeep] = useState<string | null>(null);
 
   const battleCells = useMemo(() => {
@@ -59,6 +60,8 @@ export function GridView({
   const selectedCell = selectedKeep ? cellsByKey.get(selectedKeep) : null;
   const selectedOwner = selectedCell?.owner ? guildsById.get(selectedCell.owner) : null;
   const selectedKind: ResourceKind = selectedCell?.resourceKind ?? "keep";
+  const selectedIsHq = selectedCell?.type === "hq";
+  const selectedRank = selectedOwner ? rankedGuilds.findIndex((g) => g.id === selectedOwner.id) + 1 : 0;
 
   let popupStyle: React.CSSProperties | undefined;
   if (selectedCell) {
@@ -88,6 +91,7 @@ export function GridView({
           const inBattle = battleCells.has(key);
           const isMine = owner?.id === myGuildId;
           const isPrimaryHq = cell.type === "hq" && !!owner && owner.hq === key;
+          const isHq = cell.type === "hq" && !!owner;
           const isKeep = cell.type === "castle";
           const kind: ResourceKind = cell.resourceKind ?? "keep";
 
@@ -113,11 +117,11 @@ export function GridView({
               `${cell.x},${cell.y - 1}`,
             ].some((n) => cellsByKey.get(n)?.owner === myGuildId);
 
-          const clickable = isEligible || isKeep;
+          const clickable = isEligible || isKeep || isHq;
 
           function handleClick() {
             if (isEligible) onPlaceTile(cell.x, cell.y);
-            else if (isKeep) setSelectedKeep(key);
+            else if (isKeep || isHq) setSelectedKeep(key);
           }
 
           return (
@@ -139,7 +143,7 @@ export function GridView({
                 isEligible
                   ? "Place your banked tile here"
                   : owner
-                    ? `${owner.name}${cell.type === "hq" ? " — Castle" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
+                    ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
                     : isKeep
                       ? `${RESOURCE_LABEL[kind]} — click for details`
                       : "Open Field"
@@ -154,6 +158,9 @@ export function GridView({
               {isPrimaryHq && (
                 <div className="hq-castle-wrap">
                   <CastleIcon color={owner!.color} size="64%" />
+                  <span className="hq-flag-overlay">
+                    <FlagBadge color={owner!.color} decal={owner!.flagDecal} size={22} />
+                  </span>
                 </div>
               )}
 
@@ -165,7 +172,30 @@ export function GridView({
         })}
       </div>
 
-      {selectedCell && (
+      {selectedCell && selectedIsHq && selectedOwner && (
+        <div className="keep-info keep-info--floating" style={popupStyle}>
+          <button className="keep-info__close" onClick={() => setSelectedKeep(null)} aria-label="Close">
+            ×
+          </button>
+          <div className="keep-info__badge">
+            <FlagBadge color={selectedOwner.color} decal={selectedOwner.flagDecal} size={56} />
+          </div>
+          <div>
+            <h3>{selectedOwner.name}</h3>
+            <p className="keep-info__status">Guild Headquarters</p>
+            <p className="keep-info__desc">
+              Led by {selectedOwner.leaderUsername} &middot; {selectedOwner.members.length} member{selectedOwner.members.length === 1 ? "" : "s"}
+            </p>
+            <p className="keep-info__buff">
+              #{selectedRank} &middot; {selectedOwner.squareCount} fields &middot; {selectedOwner.tokens}🪙
+              {selectedOwner.sessionsWon > 0 ? ` · 🏆×${selectedOwner.sessionsWon}` : ""}
+              {selectedOwner.takeovers > 0 ? ` · 👑×${selectedOwner.takeovers}` : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {selectedCell && !selectedIsHq && (
         <div className="keep-info keep-info--floating" style={popupStyle}>
           <button className="keep-info__close" onClick={() => setSelectedKeep(null)} aria-label="Close">
             ×

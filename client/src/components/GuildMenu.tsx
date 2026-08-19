@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, GameStateSnapshot, Identity } from "../types";
-import { getChatHistory, sendChatMessage } from "../api";
+import { breakAlliance, getChatHistory, proposeAlliance, respondAlliance, sendChatMessage } from "../api";
 import { FlagBadge } from "./icons";
 import { soundEngine } from "../lib/sound";
 
-type Tab = "overview" | "members" | "chat";
+type Tab = "overview" | "members" | "diplomacy" | "chat";
 
 function formatFoundedAgo(createdAt: number): string {
   const ms = Date.now() - createdAt;
@@ -34,10 +34,13 @@ export function GuildMenu({
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [diploBusy, setDiploBusy] = useState<string | null>(null);
+  const [diploError, setDiploError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const guild = snapshot.guilds.find((g) => g.id === identity.guildId);
   const guildId = guild?.id;
+  const isLeader = !!identity.leaderSecret;
 
   useEffect(() => {
     if (!guildId) return;
@@ -63,6 +66,21 @@ export function GuildMenu({
 
   const rank = [...snapshot.guilds].sort((a, b) => b.squareCount - a.squareCount).findIndex((g) => g.id === guild.id) + 1;
   const streakEntries = Object.entries(guild.streaks).filter(([, v]) => v > 0);
+
+  async function runDiplo(key: string, action: () => Promise<unknown>) {
+    if (!guildId || !identity.leaderSecret) return;
+    setDiploBusy(key);
+    setDiploError(null);
+    try {
+      await action();
+      soundEngine.play("click");
+    } catch (err) {
+      setDiploError(err instanceof Error ? err.message : "Diplomacy action failed");
+      soundEngine.play("error");
+    } finally {
+      setDiploBusy(null);
+    }
+  }
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -101,6 +119,9 @@ export function GuildMenu({
           </button>
           <button type="button" className={tab === "members" ? "active" : ""} onClick={() => setTab("members")}>
             Members ({guild.members.length})
+          </button>
+          <button type="button" className={tab === "diplomacy" ? "active" : ""} onClick={() => setTab("diplomacy")}>
+            Diplomacy{guild.incomingAllianceRequests.length > 0 ? ` (${guild.incomingAllianceRequests.length})` : ""}
           </button>
           <button type="button" className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
             Chat
@@ -180,6 +201,106 @@ export function GuildMenu({
                 </li>
               ))}
             </ul>
+          )}
+
+          {tab === "diplomacy" && (
+            <div className="diplomacy">
+              {!isLeader && <div className="empty-hint">Only your guild's leader can broker alliances.</div>}
+
+              <h4 className="diplomacy__section-title">Our Allies</h4>
+              {guild.allies.length === 0 && <div className="empty-hint">No alliances yet.</div>}
+              {guild.allies.map((allyId) => {
+                const ally = snapshot.guilds.find((g) => g.id === allyId);
+                if (!ally) return null;
+                return (
+                  <div key={allyId} className="diplomacy__row">
+                    <FlagBadge color={ally.color} decal={ally.flagDecal} size={20} />
+                    <span className="diplomacy__name">{ally.name}</span>
+                    {isLeader && (
+                      <button
+                        type="button"
+                        className="diplomacy__btn diplomacy__btn--break"
+                        disabled={diploBusy === `break-${allyId}`}
+                        onClick={() => runDiplo(`break-${allyId}`, () => breakAlliance(guildId!, identity.leaderSecret!, allyId))}
+                      >
+                        Break
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+
+              {guild.incomingAllianceRequests.length > 0 && (
+                <>
+                  <h4 className="diplomacy__section-title">Incoming Requests</h4>
+                  {guild.incomingAllianceRequests.map((proposerId) => {
+                    const proposer = snapshot.guilds.find((g) => g.id === proposerId);
+                    if (!proposer) return null;
+                    return (
+                      <div key={proposerId} className="diplomacy__row">
+                        <FlagBadge color={proposer.color} decal={proposer.flagDecal} size={20} />
+                        <span className="diplomacy__name">{proposer.name}</span>
+                        {isLeader && (
+                          <span className="diplomacy__actions">
+                            <button
+                              type="button"
+                              className="diplomacy__btn diplomacy__btn--accept"
+                              disabled={diploBusy === `respond-${proposerId}`}
+                              onClick={() => runDiplo(`respond-${proposerId}`, () => respondAlliance(guildId!, identity.leaderSecret!, proposerId, true))}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              type="button"
+                              className="diplomacy__btn"
+                              disabled={diploBusy === `respond-${proposerId}`}
+                              onClick={() => runDiplo(`respond-${proposerId}`, () => respondAlliance(guildId!, identity.leaderSecret!, proposerId, false))}
+                            >
+                              Decline
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              <h4 className="diplomacy__section-title">Propose an Alliance</h4>
+              {snapshot.guilds
+                .filter(
+                  (g) =>
+                    g.alive &&
+                    g.id !== guild.id &&
+                    !guild.allies.includes(g.id) &&
+                    !guild.outgoingAllianceRequests.includes(g.id) &&
+                    !guild.incomingAllianceRequests.includes(g.id)
+                )
+                .map((g) => (
+                  <div key={g.id} className="diplomacy__row">
+                    <FlagBadge color={g.color} decal={g.flagDecal} size={20} />
+                    <span className="diplomacy__name">{g.name}</span>
+                    {isLeader && (
+                      <button
+                        type="button"
+                        className="diplomacy__btn"
+                        disabled={diploBusy === `propose-${g.id}`}
+                        onClick={() => runDiplo(`propose-${g.id}`, () => proposeAlliance(guildId!, identity.leaderSecret!, g.id))}
+                      >
+                        Propose
+                      </button>
+                    )}
+                  </div>
+                ))}
+              {guild.outgoingAllianceRequests.length > 0 && (
+                <div className="diplomacy__pending-note">
+                  Awaiting response from:{" "}
+                  {guild.outgoingAllianceRequests.map((id) => snapshot.guilds.find((g) => g.id === id)?.name ?? "unknown").join(", ")}
+                </div>
+              )}
+
+              {diploError && <div className="form-error">{diploError}</div>}
+            </div>
           )}
 
           {tab === "chat" && (

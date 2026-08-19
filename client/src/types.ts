@@ -44,6 +44,7 @@ export interface RoundResultEntry {
   pctChange: number | null;
   outcome: RoundOutcome;
   tileOutcome?: TileOutcome;
+  tilesGranted?: number;
 }
 
 export interface RoundHistoryEntry {

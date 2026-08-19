@@ -16,14 +16,24 @@ export const CONFIG = {
   // Consecutive battle wins against the same guild that trigger a full takeover.
   TAKEOVER_STREAK: Number(process.env.TAKEOVER_STREAK ?? 2),
 
-  // Tokens awarded to the session-winning guild.
-  SESSION_WINNER_TOKENS: Number(process.env.SESSION_WINNER_TOKENS ?? 3),
+  // Silver awarded each round to the guild with strictly the most territory
+  // (skipped on a tie - no ambiguous leader, no reward). Diminished by guild
+  // size - see guildRewardMultiplier in gameEngine.ts.
+  ROUND_LEADER_SILVER: Number(process.env.ROUND_LEADER_SILVER ?? 3),
+
+  // Silver awarded to the session-winning guild (1 gold coin's worth - see
+  // GOLD_TO_SILVER). Also diminished by guild size.
+  SESSION_WINNER_SILVER: Number(process.env.SESSION_WINNER_SILVER ?? 100),
 
   // A won round or battle earns a tile into the guild's bank instead of
   // auto-placing it; the leader places banked tiles wherever they like next
   // to existing territory, whenever they like. Bank overflows destroy the
   // newly-earned tile instead of growing past this cap.
   MAX_PENDING_TILES: Number(process.env.MAX_PENDING_TILES ?? 5),
+
+  // The single guild whose call gained the most this round (if positive)
+  // banks this many tiles instead of the usual 1.
+  TOP_CALLER_TILE_BONUS: Number(process.env.TOP_CALLER_TILE_BONUS ?? 3),
 
   // Minimum Chebyshev distance enforced between randomly-placed HQs (2x2 blocks).
   MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 7),
@@ -53,6 +63,11 @@ export const CONFIG = {
 // (guild members and spectators alike) - separate from per-guild chat, which
 // is keyed by real guild ids in the same `chats` map.
 export const GLOBAL_CHAT_ID = "global";
+
+// A guild's wealth is stored as a single silver-denominated integer
+// (guild.tokens). Gold is a display convention on top of it, not a
+// separate stored value - 100 silver renders as "1 gold".
+export const GOLD_TO_SILVER = 100;
 
 export const NEUTRAL_CASTLE_COUNT = 8;
 export const NEUTRAL_MIN_SPACING = 4;

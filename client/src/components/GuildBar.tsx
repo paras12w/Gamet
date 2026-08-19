@@ -3,6 +3,7 @@ import type { GameStateSnapshot, Identity } from "../types";
 import { proposeTicker } from "../api";
 import { FlagBadge } from "./icons";
 import { soundEngine } from "../lib/sound";
+import { formatCoins } from "../lib/coins";
 
 export const MAX_PENDING_TILES = 5;
 
@@ -53,7 +54,7 @@ export function GuildBar({
         <span className="guild-bar__title">
           <span className="guild-bar__name">{guild.name}</span>
           <span className="guild-bar__meta">
-            #{rank} · {guild.squareCount} fields · {guild.tokens}🪙
+            #{rank} · {guild.squareCount} fields · {formatCoins(guild.tokens)}
           </span>
         </span>
         <span className="guild-bar__menu-hint">Guild Menu ▸</span>

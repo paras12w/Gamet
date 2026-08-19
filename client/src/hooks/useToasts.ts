@@ -54,11 +54,23 @@ export function useToasts(
           else if (r.outcome === "battle_won") playSound("battleWin");
           else if (r.outcome === "battle_lost" || r.outcome === "battle_forfeit" || r.outcome === "takeover_lost") playSound("battleLose");
 
+          const isTopCaller = (r.tilesGranted ?? 1) > 1;
+          if (isTopCaller && r.tileOutcome) {
+            fresh.push({
+              id: `${roundKey}-${r.guildId}-top-caller`,
+              kind: "success",
+              text: `🥇 Best call of the round! +${r.tilesGranted} tiles ${r.tileOutcome === "banked" ? "banked" : "earned"}.`,
+            });
+            playSound("battleWin");
+          }
+
           if (r.tileOutcome === "destroyed") {
             fresh.push({
               id: `${roundKey}-${r.guildId}-tile-lost`,
               kind: "danger",
-              text: "🔥 Your tile bank was already full (5/5) — this round's earned tile was destroyed!",
+              text: isTopCaller
+                ? "🔥 Your tile bank was nearly full — some of this round's top-call bonus tiles were destroyed!"
+                : "🔥 Your tile bank was already full (5/5) — this round's earned tile was destroyed!",
             });
             playSound("error");
           }

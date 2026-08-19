@@ -12,10 +12,14 @@ const OUTCOME_LABEL: Record<RoundResultEntry["outcome"], string> = {
   takeover_lost: "💀 conquered by a rival guild",
 };
 
-const TILE_OUTCOME_LABEL: Record<"banked" | "destroyed", string> = {
-  banked: " · 🎒 tile banked",
-  destroyed: " · 🔥 tile destroyed (bank full)",
-};
+function tileOutcomeLabel(r: RoundResultEntry): string | null {
+  if (!r.tileOutcome) return null;
+  const isTop = (r.tilesGranted ?? 1) > 1;
+  if (r.tileOutcome === "banked") {
+    return isTop ? ` · 🥇 top call — ${r.tilesGranted} tiles banked!` : " · 🎒 tile banked";
+  }
+  return isTop ? ` · 🔥 top call, but the bank overflowed — some tiles destroyed` : " · 🔥 tile destroyed (bank full)";
+}
 
 // Deterministic flavor lines for the outcomes worth dramatizing. Picked by a
 // hash of the round/guild/outcome so the same event always reads the same
@@ -94,7 +98,7 @@ export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {
                     )}
                     <span className="round-log__outcome">
                       {OUTCOME_LABEL[r.outcome]}
-                      {r.tileOutcome && TILE_OUTCOME_LABEL[r.tileOutcome]}
+                      {tileOutcomeLabel(r)}
                     </span>
                   </div>
                   {flavor && <p className="round-log__flavor">{flavor}</p>}

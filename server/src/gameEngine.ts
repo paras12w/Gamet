@@ -478,13 +478,26 @@ export class GameEngine {
     return pick;
   }
 
-  /** Earns the guild a tile into its bank, or destroys it if the bank
-   * (MAX_PENDING_TILES) is already full. The leader places banked tiles
-   * later via placeTile(), wherever they like next to their territory. */
-  private grantTile(guild: Guild): "banked" | "destroyed" {
-    if (guild.pendingTiles >= CONFIG.MAX_PENDING_TILES) return "destroyed";
-    guild.pendingTiles += 1;
-    return "banked";
+  /** Earns the guild `count` tiles into its bank (1 normally, more for the
+   * round's top caller - see TOP_CALLER_TILE_BONUS). Whatever doesn't fit
+   * under MAX_PENDING_TILES is destroyed instead of banked; the leader
+   * places banked tiles later via placeTile(), wherever they like next to
+   * their territory. */
+  private grantTile(guild: Guild, count = 1): "banked" | "destroyed" {
+    const capacity = CONFIG.MAX_PENDING_TILES - guild.pendingTiles;
+    if (capacity <= 0) return "destroyed";
+    const granted = Math.min(count, capacity);
+    guild.pendingTiles += granted;
+    return granted < count ? "destroyed" : "banked";
+  }
+
+  /** Diminishing-returns multiplier applied to silver/gold rewards so a
+   * bigger guild's shared pot grows sub-linearly with its roster - a solo
+   * warband keeps every coin (multiplier 1), a 4-member guild gets 2x (not
+   * 4x), a 9-member guild gets 3x, and so on. Tiles/territory outcomes are
+   * NOT scaled this way - only the silver/gold currency layer is. */
+  private guildRewardMultiplier(memberCount: number): number {
+    return Math.sqrt(Math.max(1, memberCount));
   }
 
   /** Leader spends one banked tile to claim a specific empty field
@@ -538,6 +551,14 @@ export class GameEngine {
       priceInfo.set(guild.id, { ticker: guild.proposal.ticker, start: guild.proposal.startPrice, end: quote.price });
     }
 
+    // The single best-performing call of the round (if positive) banks
+    // TOP_CALLER_TILE_BONUS tiles instead of the usual 1. Ties (rare with
+    // real price data) all get the bonus.
+    let topPct = -Infinity;
+    for (const pct of pctById.values()) if (pct > topPct) topPct = pct;
+    const topGuildIds = topPct > 0 ? new Set([...pctById].filter(([, p]) => p === topPct).map(([id]) => id)) : new Set<string>();
+    const tileCountFor = (id: string) => (topGuildIds.has(id) ? CONFIG.TOP_CALLER_TILE_BONUS : 1);
+
     const battledGuildIds = new Set<string>();
     for (const battle of this.battles) {
       battledGuildIds.add(battle.guildA);
@@ -579,7 +600,8 @@ export class GameEngine {
       winner.squares.add(loserCell);
       const capturedCell = this.grid.get(loserCell);
       if (capturedCell) capturedCell.owner = winner.id;
-      const bonusTileOutcome = this.grantTile(winner);
+      const winnerTileCount = tileCountFor(winner.id);
+      const bonusTileOutcome = this.grantTile(winner, winnerTileCount);
 
       winner.streaks[loser.id] = (winner.streaks[loser.id] ?? 0) + 1;
       loser.streaks[winner.id] = 0;
@@ -594,8 +616,8 @@ export class GameEngine {
       const finalOutcomeB = takeover && b.id === winner.id ? "takeover_win" : takeover && b.id === loser.id ? "takeover_lost" : outcomeB;
 
       results.push(
-        this.buildResult(a, infoA, finalOutcomeA, a.id === winner.id ? bonusTileOutcome : undefined),
-        this.buildResult(b, infoB, finalOutcomeB, b.id === winner.id ? bonusTileOutcome : undefined)
+        this.buildResult(a, infoA, finalOutcomeA, a.id === winner.id ? bonusTileOutcome : undefined, a.id === winner.id ? winnerTileCount : undefined),
+        this.buildResult(b, infoB, finalOutcomeB, b.id === winner.id ? bonusTileOutcome : undefined, b.id === winner.id ? winnerTileCount : undefined)
       );
     }
     this.battles = stillPending;
@@ -609,8 +631,9 @@ export class GameEngine {
       const pct = pctById.get(guild.id)!;
       const info = priceInfo.get(guild.id)!;
       if (pct > 0) {
-        const tileOutcome = this.grantTile(guild);
-        results.push(this.buildResult(guild, info, "expanded", tileOutcome));
+        const tileCount = tileCountFor(guild.id);
+        const tileOutcome = this.grantTile(guild, tileCount);
+        results.push(this.buildResult(guild, info, "expanded", tileOutcome, tileCount));
       } else {
         results.push(this.buildResult(guild, info, "no_change"));
       }
@@ -625,6 +648,7 @@ export class GameEngine {
 
     this.detectNewBattles();
     this.settleWagers(pctById);
+    this.awardRoundLeaderSilver();
 
     for (const guild of this.livingGuilds()) guild.proposal = null;
     this.lastRoundResults = results;
@@ -646,7 +670,8 @@ export class GameEngine {
     guild: Guild,
     info: { ticker: string; start: number; end: number } | null,
     outcome: RoundResultEntry["outcome"],
-    tileOutcome?: "banked" | "destroyed"
+    tileOutcome?: "banked" | "destroyed",
+    tilesGranted?: number
   ): RoundResultEntry {
     return {
       guildId: guild.id,
@@ -657,7 +682,32 @@ export class GameEngine {
       pctChange: info ? (info.end - info.start) / info.start : null,
       outcome,
       tileOutcome,
+      tilesGranted,
     };
+  }
+
+  /** Every round, the guild holding strictly the most territory earns
+   * ROUND_LEADER_SILVER (scaled by guildRewardMultiplier). A tie means no
+   * clear leader, so nobody is awarded - this also means round 1 never
+   * pays out, since every guild starts tied at 4 squares. */
+  private awardRoundLeaderSilver(): void {
+    const living = this.livingGuilds();
+    let leader: Guild | null = null;
+    let tied = false;
+    for (const g of living) {
+      if (!leader || g.squares.size > leader.squares.size) {
+        leader = g;
+        tied = false;
+      } else if (g.squares.size === leader.squares.size) {
+        tied = true;
+      }
+    }
+    if (!leader || tied) return;
+    const silver = Math.round(CONFIG.ROUND_LEADER_SILVER * this.guildRewardMultiplier(leader.members.length));
+    if (silver <= 0) return;
+    leader.tokens += silver;
+    updateGuildTokens(leader.id, leader.tokens);
+    this.postSystemMessage(leader.id, `🪙 Our territory leads the realm this round - +${silver} silver.`);
   }
 
   private detectNewBattles(): void {
@@ -702,11 +752,18 @@ export class GameEngine {
   private endSession(): void {
     const living = this.livingGuilds();
     let winner: Guild | null = null;
+    let tied = false;
     for (const g of living) {
-      if (!winner || g.squares.size > winner.squares.size) winner = g;
+      if (!winner || g.squares.size > winner.squares.size) {
+        winner = g;
+        tied = false;
+      } else if (g.squares.size === winner.squares.size) {
+        tied = true;
+      }
     }
-    if (winner && winner.squares.size > 0) {
-      winner.tokens += CONFIG.SESSION_WINNER_TOKENS;
+    if (winner && !tied && winner.squares.size > 0) {
+      const silver = Math.round(CONFIG.SESSION_WINNER_SILVER * this.guildRewardMultiplier(winner.members.length));
+      winner.tokens += silver;
       updateGuildTokens(winner.id, winner.tokens);
       winner.sessionsWon += 1;
       updateGuildSessionsWon(winner.id, winner.sessionsWon);

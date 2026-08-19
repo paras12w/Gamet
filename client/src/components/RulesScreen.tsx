@@ -15,7 +15,22 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
             <span className="rules-item__icon">🌱</span>
             <div>
               <h3>Expand your holdings</h3>
-              <p>Call rises &mdash; your guild earns a tile. Call falls or flat &mdash; you hold your ground, nothing more.</p>
+              <p>
+                Call rises &mdash; your guild earns a tile. Call falls or flat &mdash; you hold your ground, nothing more. The
+                single best-performing call of the round earns <strong>3 tiles</strong> instead of 1.
+              </p>
+            </div>
+          </div>
+          <div className="rules-item">
+            <span className="rules-item__icon">🪙</span>
+            <div>
+              <h3>Silver &amp; gold</h3>
+              <p>
+                Every round, whoever holds strictly the most territory earns 3 silver &mdash; a tie means no clear leader, so
+                nobody's paid. At the end of each 2-hour season, the season's territorial leader earns 1 gold (worth 100
+                silver). A bigger guild's payout grows with its roster, but slower than headcount &mdash; a solo warband keeps
+                every coin it earns.
+              </p>
             </div>
           </div>
           <div className="rules-item">
@@ -59,8 +74,8 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
             <div>
               <h3>The season ends</h3>
               <p>
-                Each season runs a fixed number of rounds. Whoever holds the most land when it ends earns lasting gold, then the
-                map is wiped clean and a new season begins.
+                Each season runs a fixed number of rounds. Whoever holds the most land when it ends earns the season's gold
+                coin (see Silver &amp; Gold), then the map is wiped clean and a new season begins.
               </p>
             </div>
           </div>

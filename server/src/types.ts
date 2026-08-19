@@ -54,9 +54,13 @@ export interface RoundResultEntry {
     | "takeover_win"
     | "takeover_lost";
   // Set alongside "expanded"/"battle_won"/"takeover_win" when that win also
-  // earned a tile - "banked" if it fit in the guild's bank, "destroyed" if
-  // the bank was already full (MAX_PENDING_TILES).
+  // earned a tile - "banked" if it fully fit in the guild's bank, "destroyed"
+  // if any of it overflowed (MAX_PENDING_TILES).
   tileOutcome?: "banked" | "destroyed";
+  // How many tiles this win was worth (1 normally, TOP_CALLER_TILE_BONUS for
+  // the round's single best-performing call) - not necessarily how many
+  // actually landed in the bank if it was already near full.
+  tilesGranted?: number;
 }
 
 export interface RoundHistoryEntry {

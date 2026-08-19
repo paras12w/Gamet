@@ -1,5 +1,6 @@
 import type { GameStateSnapshot } from "../types";
 import { FlagBadge } from "./icons";
+import { formatCoins } from "../lib/coins";
 
 export function HallOfFame({ snapshot }: { snapshot: GameStateSnapshot }) {
   const entries = snapshot.hallOfFame;
@@ -17,7 +18,7 @@ export function HallOfFame({ snapshot }: { snapshot: GameStateSnapshot }) {
             <FlagBadge color={e.color} decal={e.flagDecal} size={20} />
             <span className="hall-of-fame__name">{e.name}</span>
             <span className="hall-of-fame__stats">
-              {e.tokens}🪙 · {e.sessionsWon}🏆 · {e.takeovers}👑
+              {formatCoins(e.tokens)} · {e.sessionsWon}🏆 · {e.takeovers}👑
             </span>
           </div>
         ))}

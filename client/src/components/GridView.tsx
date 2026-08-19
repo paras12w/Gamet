@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { GameStateSnapshot, ResourceKind } from "../types";
 import { BushIcon, CastleIcon, FlagBadge, KnightIcon, LumberCampIcon, MineIcon, NeutralCastleIcon, RoadTile, RockIcon, TreeIcon } from "./icons";
+import { formatCoins } from "../lib/coins";
 
 function hash(x: number, y: number): number {
   const h = (x * 374761393 + y * 668265263) ^ (x << 13);
@@ -187,7 +188,7 @@ export function GridView({
               Led by {selectedOwner.leaderUsername} &middot; {selectedOwner.members.length} member{selectedOwner.members.length === 1 ? "" : "s"}
             </p>
             <p className="keep-info__buff">
-              #{selectedRank} &middot; {selectedOwner.squareCount} fields &middot; {selectedOwner.tokens}🪙
+              #{selectedRank} &middot; {selectedOwner.squareCount} fields &middot; {formatCoins(selectedOwner.tokens)}
               {selectedOwner.sessionsWon > 0 ? ` · 🏆×${selectedOwner.sessionsWon}` : ""}
               {selectedOwner.takeovers > 0 ? ` · 👑×${selectedOwner.takeovers}` : ""}
             </p>

@@ -1,5 +1,6 @@
 import type { GameStateSnapshot } from "../types";
 import { FlagBadge } from "./icons";
+import { formatCoins } from "../lib/coins";
 
 export function Leaderboard({ snapshot, myGuildId }: { snapshot: GameStateSnapshot; myGuildId: string | null }) {
   const ranked = [...snapshot.guilds].sort((a, b) => b.squareCount - a.squareCount);
@@ -16,7 +17,7 @@ export function Leaderboard({ snapshot, myGuildId }: { snapshot: GameStateSnapsh
             <FlagBadge color={g.color} decal={g.flagDecal} size={20} />
             <span className="leaderboard__name">{g.name}</span>
             <span className="leaderboard__squares">{g.squareCount} fields</span>
-            <span className="leaderboard__tokens">{g.tokens}🪙</span>
+            <span className="leaderboard__tokens">{formatCoins(g.tokens)}</span>
           </div>
         ))}
         {ranked.length === 0 && <div className="empty-hint">No guilds yet — be the first to found one.</div>}

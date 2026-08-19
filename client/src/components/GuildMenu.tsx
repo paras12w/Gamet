@@ -4,6 +4,7 @@ import { breakAlliance, cancelWager, getChatHistory, proposeAlliance, proposeWag
 import { FlagBadge } from "./icons";
 import { soundEngine } from "../lib/sound";
 import { AllianceChatThread } from "./AllianceChatThread";
+import { formatCoins } from "../lib/coins";
 
 type Tab = "overview" | "members" | "diplomacy" | "wagers" | "chat";
 
@@ -126,7 +127,7 @@ export function GuildMenu({
           <div className="guild-menu__title">
             <h2>{guild.name}</h2>
             <p>
-              #{rank} · {guild.squareCount} fields · {guild.tokens}🪙 · led by {guild.leaderUsername}
+              #{rank} · {guild.squareCount} fields · {formatCoins(guild.tokens)} · led by {guild.leaderUsername}
             </p>
           </div>
           <button type="button" className="guild-menu__close" onClick={onClose} aria-label="Close guild menu">
@@ -165,8 +166,8 @@ export function GuildMenu({
                   <span className="stat-value">{guild.squareCount}</span>
                 </div>
                 <div>
-                  <span className="stat-label">Gold</span>
-                  <span className="stat-value">{guild.tokens}</span>
+                  <span className="stat-label">Coin</span>
+                  <span className="stat-value">{formatCoins(guild.tokens)}</span>
                 </div>
                 <div>
                   <span className="stat-label">Members</span>
@@ -343,7 +344,7 @@ export function GuildMenu({
 
           {tab === "wagers" && (
             <div className="diplomacy">
-              <p className="wagers__disclaimer">🪙 Wagers stake in-game gold only — never real money. A wager settles at the end of the round it's accepted in, based on whose call performed better.</p>
+              <p className="wagers__disclaimer">🪙 Wagers stake in-game silver only — never real money. A wager settles at the end of the round it's accepted in, based on whose call performed better.</p>
               {!isLeader && <div className="empty-hint">Only your guild's leader can place wagers.</div>}
 
               <h4 className="diplomacy__section-title">Riding This Round</h4>
@@ -356,7 +357,7 @@ export function GuildMenu({
                   <div key={w.id} className="diplomacy__row">
                     <FlagBadge color={opponent.color} decal={opponent.flagDecal} size={20} />
                     <span className="diplomacy__name">
-                      {opponent.name} — {w.amount}🪙
+                      {opponent.name} — {formatCoins(w.amount)}
                     </span>
                     <span className="wager-status">settles this round</span>
                   </div>
@@ -373,7 +374,7 @@ export function GuildMenu({
                       <div key={w.id} className="diplomacy__row">
                         <FlagBadge color={proposer.color} decal={proposer.flagDecal} size={20} />
                         <span className="diplomacy__name">
-                          {proposer.name} — {w.amount}🪙
+                          {proposer.name} — {formatCoins(w.amount)}
                         </span>
                         {isLeader && (
                           <span className="diplomacy__actions">
@@ -411,7 +412,7 @@ export function GuildMenu({
                       <div key={w.id} className="diplomacy__row">
                         <FlagBadge color={target.color} decal={target.flagDecal} size={20} />
                         <span className="diplomacy__name">
-                          {target.name} — {w.amount}🪙
+                          {target.name} — {formatCoins(w.amount)}
                         </span>
                         {isLeader && (
                           <button
@@ -432,7 +433,7 @@ export function GuildMenu({
               {isLeader && guild.tokens === 0 && (
                 <>
                   <h4 className="diplomacy__section-title">Challenge a Guild</h4>
-                  <div className="empty-hint">Your guild has no gold to wager yet — win a season or a wager to build up a stake.</div>
+                  <div className="empty-hint">Your guild has no coin to wager yet — win a round, a season, or a wager to build up a stake.</div>
                 </>
               )}
 
@@ -454,7 +455,7 @@ export function GuildMenu({
                       max={guild.tokens}
                       value={wagerAmount}
                       onChange={(e) => setWagerAmount(e.target.value)}
-                      placeholder={`Gold (max ${guild.tokens})`}
+                      placeholder={`Silver (max ${guild.tokens})`}
                     />
                     <button type="submit" disabled={!wagerTarget || !wagerAmount || diploBusy === `wager-propose-${wagerTarget}`}>
                       Challenge

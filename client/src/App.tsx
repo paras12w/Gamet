@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Identity } from "./types";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { useToasts } from "./hooks/useToasts";
+import { useSound } from "./hooks/useSound";
 import { UsernameScreen } from "./components/UsernameScreen";
 import { RulesScreen } from "./components/RulesScreen";
 import { ModeSelectScreen } from "./components/ModeSelectScreen";
@@ -13,8 +14,11 @@ import { GuildMenu } from "./components/GuildMenu";
 import { Leaderboard } from "./components/Leaderboard";
 import { RoundLog } from "./components/RoundLog";
 import { ToastStack } from "./components/ToastStack";
+import { MiniMap } from "./components/MiniMap";
 
 const STORAGE_KEY = "gamet:identity";
+
+type MobileTab = "board" | "guild" | "rankings";
 
 function loadIdentity(): Identity {
   try {
@@ -28,9 +32,12 @@ function loadIdentity(): Identity {
 
 export default function App() {
   const { snapshot, connected, chatMessages } = useGameSocket();
-  const { toasts, dismiss } = useToasts(snapshot);
+  const { muted, toggleMuted, play } = useSound();
   const [identity, setIdentityState] = useState<Identity>(loadIdentity);
+  const { toasts, dismiss } = useToasts(snapshot, identity.guildId, play);
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("board");
+  const lastChatCount = useRef(0);
 
   const setIdentity = (next: Identity) => {
     setIdentityState(next);
@@ -44,6 +51,22 @@ export default function App() {
     if (!stillExists) setIdentity({ ...identity, guildId: null, leaderSecret: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot]);
+
+  // Play a soft chime for an incoming chat message from someone else.
+  useEffect(() => {
+    if (chatMessages.length === 0) {
+      lastChatCount.current = 0;
+      return;
+    }
+    if (chatMessages.length > lastChatCount.current) {
+      const newest = chatMessages[chatMessages.length - 1];
+      if (lastChatCount.current > 0 && newest.username !== identity.username && newest.guildId === identity.guildId) {
+        play("chat");
+      }
+    }
+    lastChatCount.current = chatMessages.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatMessages]);
 
   const inGuild = !!identity.username && !!identity.guildId;
 
@@ -60,16 +83,37 @@ export default function App() {
         <TickerTape snapshot={snapshot} />
         <header className="app__header">
           <div className="app__brand">GAMET</div>
+          <button type="button" className="mute-toggle" onClick={toggleMuted} aria-label={muted ? "Unmute sound" : "Mute sound"}>
+            {muted ? "🔇" : "🔊"}
+          </button>
         </header>
         <main className="app__main">
-          <GridView snapshot={snapshot} myGuildId={identity.guildId} />
+          <div className={`app__board-pane${mobileTab === "board" ? " app__pane--active" : ""}`}>
+            <GridView snapshot={snapshot} myGuildId={identity.guildId} />
+          </div>
           <aside className="app__sidebar">
             <Timer snapshot={snapshot} />
-            <GuildBar snapshot={snapshot} identity={identity} onOpenMenu={() => setGuildMenuOpen(true)} />
-            <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
-            <RoundLog snapshot={snapshot} />
+            <div className={`app__pane${mobileTab === "guild" ? " app__pane--active" : ""}`}>
+              <GuildBar snapshot={snapshot} identity={identity} onOpenMenu={() => setGuildMenuOpen(true)} />
+              <MiniMap snapshot={snapshot} myGuildId={identity.guildId} />
+            </div>
+            <div className={`app__pane${mobileTab === "rankings" ? " app__pane--active" : ""}`}>
+              <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
+              <RoundLog snapshot={snapshot} />
+            </div>
           </aside>
         </main>
+        <nav className="mobile-tabbar">
+          <button type="button" className={mobileTab === "board" ? "active" : ""} onClick={() => setMobileTab("board")}>
+            <span className="mobile-tabbar__icon">🗺️</span>Board
+          </button>
+          <button type="button" className={mobileTab === "guild" ? "active" : ""} onClick={() => setMobileTab("guild")}>
+            <span className="mobile-tabbar__icon">🏳️</span>Guild
+          </button>
+          <button type="button" className={mobileTab === "rankings" ? "active" : ""} onClick={() => setMobileTab("rankings")}>
+            <span className="mobile-tabbar__icon">🏆</span>Ranks
+          </button>
+        </nav>
         {guildMenuOpen && (
           <GuildMenu
             snapshot={snapshot}

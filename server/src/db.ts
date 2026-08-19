@@ -19,6 +19,8 @@ db.exec(`
     flag_decal TEXT NOT NULL DEFAULT '🛡️',
     members TEXT NOT NULL DEFAULT '[]',
     tokens INTEGER NOT NULL DEFAULT 0,
+    sessions_won INTEGER NOT NULL DEFAULT 0,
+    takeovers INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
   );
 
@@ -36,11 +38,12 @@ db.exec(`
   );
 `);
 
-// Guard for databases created before flag_decal existed.
+// Guards for databases created before these columns existed.
 const guildColumns = db.prepare(`PRAGMA table_info(guilds)`).all() as { name: string }[];
-if (!guildColumns.some((c) => c.name === "flag_decal")) {
-  db.exec(`ALTER TABLE guilds ADD COLUMN flag_decal TEXT NOT NULL DEFAULT '🛡️'`);
-}
+const hasColumn = (name: string) => guildColumns.some((c) => c.name === name);
+if (!hasColumn("flag_decal")) db.exec(`ALTER TABLE guilds ADD COLUMN flag_decal TEXT NOT NULL DEFAULT '🛡️'`);
+if (!hasColumn("sessions_won")) db.exec(`ALTER TABLE guilds ADD COLUMN sessions_won INTEGER NOT NULL DEFAULT 0`);
+if (!hasColumn("takeovers")) db.exec(`ALTER TABLE guilds ADD COLUMN takeovers INTEGER NOT NULL DEFAULT 0`);
 
 export interface GuildRow {
   id: string;
@@ -51,18 +54,28 @@ export interface GuildRow {
   flag_decal: string;
   members: string;
   tokens: number;
+  sessions_won: number;
+  takeovers: number;
   created_at: number;
 }
 
 export function insertGuildRow(row: GuildRow): void {
   db.prepare(
-    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, created_at)
-     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @created_at)`
+    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, sessions_won, takeovers, created_at)
+     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @sessions_won, @takeovers, @created_at)`
   ).run(row);
 }
 
 export function updateGuildTokens(id: string, tokens: number): void {
   db.prepare(`UPDATE guilds SET tokens = ? WHERE id = ?`).run(tokens, id);
+}
+
+export function updateGuildSessionsWon(id: string, sessionsWon: number): void {
+  db.prepare(`UPDATE guilds SET sessions_won = ? WHERE id = ?`).run(sessionsWon, id);
+}
+
+export function updateGuildTakeovers(id: string, takeovers: number): void {
+  db.prepare(`UPDATE guilds SET takeovers = ? WHERE id = ?`).run(takeovers, id);
 }
 
 export function updateGuildMembers(id: string, members: string[]): void {

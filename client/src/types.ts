@@ -48,6 +48,9 @@ export interface PublicGuild {
   color: string;
   flagDecal: string;
   tokens: number;
+  sessionsWon: number;
+  takeovers: number;
+  createdAt: number;
   hq: string;
   squareCount: number;
   squares: string[];

@@ -12,7 +12,15 @@ import {
   scatterNeutralPositions,
 } from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
-import { insertGuildRow, loadAllGuildRows, recordSessionResult, updateGuildMembers, updateGuildTokens } from "./db.js";
+import {
+  insertGuildRow,
+  loadAllGuildRows,
+  recordSessionResult,
+  updateGuildMembers,
+  updateGuildSessionsWon,
+  updateGuildTakeovers,
+  updateGuildTokens,
+} from "./db.js";
 import type { Battle, Cell, CellKey, ChatMessage, GameStateSnapshot, Guild, PublicGuild, ResourceKind, RoundResultEntry } from "./types.js";
 
 const RESOURCE_KINDS: ResourceKind[] = ["keep", "lumber", "mine"];
@@ -88,6 +96,8 @@ export class GameEngine {
         color: row.color,
         flagDecal: row.flag_decal,
         tokens: row.tokens,
+        sessionsWon: row.sessions_won,
+        takeovers: row.takeovers,
         hq: cellKey(0, 0), // overwritten by placeHq below
         squares: new Set(),
         proposal: null,
@@ -158,6 +168,8 @@ export class GameEngine {
       color: flagColor && FLAG_COLORS.includes(flagColor) ? flagColor : randomFlagColor(),
       flagDecal: flagDecal && FLAG_DECALS.includes(flagDecal) ? flagDecal : randomFlagDecal(),
       tokens: 0,
+      sessionsWon: 0,
+      takeovers: 0,
       hq: cellKey(0, 0), // overwritten by placeHq below
       squares: new Set(),
       proposal: null,
@@ -177,6 +189,8 @@ export class GameEngine {
       flag_decal: guild.flagDecal,
       members: JSON.stringify(guild.members),
       tokens: guild.tokens,
+      sessions_won: guild.sessionsWon,
+      takeovers: guild.takeovers,
       created_at: guild.createdAt,
     });
 
@@ -274,6 +288,8 @@ export class GameEngine {
     const merged = new Set([...winner.members, ...loser.members, loser.leaderUsername]);
     winner.members = [...merged];
     updateGuildMembers(winner.id, winner.members);
+    winner.takeovers += 1;
+    updateGuildTakeovers(winner.id, winner.takeovers);
     delete winner.streaks[loser.id];
     // Drop any other pending battles involving the now-absorbed guild.
     this.battles = this.battles.filter((b) => b.guildA !== loser.id && b.guildB !== loser.id);
@@ -435,6 +451,8 @@ export class GameEngine {
     if (winner && winner.squares.size > 0) {
       winner.tokens += CONFIG.SESSION_WINNER_TOKENS;
       updateGuildTokens(winner.id, winner.tokens);
+      winner.sessionsWon += 1;
+      updateGuildSessionsWon(winner.id, winner.sessionsWon);
       this.lastSessionWinner = { guildId: winner.id, guildName: winner.name };
       recordSessionResult(this.sessionNumber, winner.id, winner.name);
     } else {
@@ -466,6 +484,9 @@ export class GameEngine {
       color: g.color,
       flagDecal: g.flagDecal,
       tokens: g.tokens,
+      sessionsWon: g.sessionsWon,
+      takeovers: g.takeovers,
+      createdAt: g.createdAt,
       hq: g.hq,
       squareCount: g.squares.size,
       squares: [...g.squares],

@@ -2,8 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, GameStateSnapshot, Identity } from "../types";
 import { getChatHistory, sendChatMessage } from "../api";
 import { FlagBadge } from "./icons";
+import { soundEngine } from "../lib/sound";
 
 type Tab = "overview" | "members" | "chat";
+
+function formatFoundedAgo(createdAt: number): string {
+  const ms = Date.now() - createdAt;
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
 
 export function GuildMenu({
   snapshot,
@@ -59,6 +71,7 @@ export function GuildMenu({
     try {
       await sendChatMessage(guildId, identity.username, draft);
       setDraft("");
+      soundEngine.play("click");
     } catch {
       /* best-effort chat, drop silently */
     } finally {
@@ -114,7 +127,28 @@ export function GuildMenu({
                   <span className="stat-label">Members</span>
                   <span className="stat-value">{guild.members.length}</span>
                 </div>
+                <div>
+                  <span className="stat-label">Seasons Won</span>
+                  <span className="stat-value">{guild.sessionsWon}</span>
+                </div>
+                <div>
+                  <span className="stat-label">Conquests</span>
+                  <span className="stat-value">{guild.takeovers}</span>
+                </div>
               </div>
+
+              {(guild.sessionsWon > 0 || guild.takeovers > 0) && (
+                <div className="guild-menu__badges">
+                  {guild.sessionsWon > 0 && (
+                    <span className="achievement-badge">🏆 Season Champion{guild.sessionsWon > 1 ? ` ×${guild.sessionsWon}` : ""}</span>
+                  )}
+                  {guild.takeovers > 0 && (
+                    <span className="achievement-badge">👑 Conqueror{guild.takeovers > 1 ? ` ×${guild.takeovers}` : ""}</span>
+                  )}
+                </div>
+              )}
+
+              <p className="guild-menu__founded">Founded {formatFoundedAgo(guild.createdAt)}</p>
 
               {streakEntries.length > 0 && (
                 <div className="guild-panel__streaks">

@@ -64,6 +64,8 @@ export interface Guild {
   color: string; // flag background color
   flagDecal: string; // flag emblem (one of FLAG_DECALS)
   tokens: number; // persists across sessions
+  sessionsWon: number; // persists across sessions
+  takeovers: number; // persists across sessions
   hq: CellKey;
   squares: Set<CellKey>; // includes hq; reset each session
   proposal: Proposal | null;
@@ -80,6 +82,9 @@ export interface PublicGuild {
   color: string;
   flagDecal: string;
   tokens: number;
+  sessionsWon: number;
+  takeovers: number;
+  createdAt: number;
   hq: CellKey;
   squareCount: number;
   squares: CellKey[];

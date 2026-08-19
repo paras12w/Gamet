@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { GameStateSnapshot, Identity } from "../types";
 import { proposeTicker } from "../api";
 import { FlagBadge } from "./icons";
+import { soundEngine } from "../lib/sound";
 
 export function GuildBar({
   snapshot,
@@ -30,8 +31,10 @@ export function GuildBar({
     try {
       await proposeTicker(guild.id, identity.leaderSecret, ticker);
       setTicker("");
+      soundEngine.play("click");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to propose ticker");
+      soundEngine.play("error");
     } finally {
       setSubmitting(false);
     }

@@ -13,6 +13,12 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
   mine: "Ore Mine",
 };
 
+const RESOURCE_DESCRIPTION: Record<ResourceKind, string> = {
+  keep: "A crumbling watchtower from a realm long forgotten. Its walls still hold.",
+  lumber: "Stacked timber and a woodsman's axe, left for whoever's strong enough to hold the clearing.",
+  mine: "A shaft driven into the hillside, ore glinting in the dark. Worth fighting over.",
+};
+
 const RESOURCE_BUFF: Record<ResourceKind, string> = {
   keep: "Whoever holds this keep gains +1 field automatically every other round — no call required.",
   lumber: "This camp's timber reinforces its holder's borders: +1 field automatically every other round.",
@@ -126,6 +132,7 @@ export function GridView({ snapshot, myGuildId }: { snapshot: GameStateSnapshot;
           <div>
             <h3>{RESOURCE_LABEL[selectedKind]}</h3>
             <p className="keep-info__status">{selectedOwner ? `Held by ${selectedOwner.name}` : "Unclaimed"}</p>
+            <p className="keep-info__desc">{RESOURCE_DESCRIPTION[selectedKind]}</p>
             <p className="keep-info__buff">⚡ {RESOURCE_BUFF[selectedKind]}</p>
           </div>
         </div>

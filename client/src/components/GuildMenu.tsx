@@ -21,11 +21,12 @@ import { AllianceChatThread } from "./AllianceChatThread";
 import { formatCoins } from "../lib/coins";
 import { LiveTicker } from "./GuildBar";
 
-type Tab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "chat";
+type Tab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "chat";
 
-// Mirrors server/src/config.ts CONFIG.SCOUT_COST default - same pattern as
-// GuildBar's MAX_PENDING_TILES constant.
+// Mirrors server/src/config.ts CONFIG.SCOUT_COST / COUNCIL_SCOUT_DISCOUNT
+// defaults - same pattern as GuildBar's MAX_PENDING_TILES constant.
 const SCOUT_COST = 5;
+const COUNCIL_SCOUT_DISCOUNT = 2;
 
 // The three sectors with an actual mechanical bonus - mirrors server/src/
 // gameEngine.ts KINGDOM_SECTORS. Consumer/Industrial/Index are flavor-only.
@@ -204,6 +205,9 @@ export function GuildMenu({
           </button>
           <button type="button" className={tab === "diplomacy" ? "active" : ""} onClick={() => setTab("diplomacy")}>
             Diplomacy{guild.incomingAllianceRequests.length > 0 ? ` (${guild.incomingAllianceRequests.length})` : ""}
+          </button>
+          <button type="button" className={tab === "scouting" ? "active" : ""} onClick={() => setTab("scouting")}>
+            Scouting
           </button>
           <button type="button" className={tab === "wagers" ? "active" : ""} onClick={() => setTab("wagers")}>
             Wagers{incomingWagers.length > 0 ? ` (${incomingWagers.length})` : ""}
@@ -412,7 +416,6 @@ export function GuildMenu({
               )}
 
               <h4 className="diplomacy__section-title">Rival Guilds</h4>
-              <p className="wagers__disclaimer">🔭 Scouting reveals a rival's locked-in call to you alone for the rest of the round.</p>
               {snapshot.guilds
                 .filter(
                   (g) =>
@@ -426,27 +429,6 @@ export function GuildMenu({
                   <div key={g.id} className="diplomacy__row">
                     <FlagBadge color={g.color} decal={g.flagDecal} size={20} />
                     <span className="diplomacy__name">{g.name}</span>
-                    {g.proposalTicker ? (
-                      <LiveTicker
-                        ticker={g.proposalTicker}
-                        startPrice={g.proposalStartPrice}
-                        livePrice={g.livePrice}
-                        source={g.liveSource}
-                        sectorKey={g.proposalSectorKey}
-                      />
-                    ) : (
-                      isLeader &&
-                      g.hasProposal && (
-                        <button
-                          type="button"
-                          className="diplomacy__btn"
-                          disabled={diploBusy === `scout-${g.id}`}
-                          onClick={() => runDiplo(`scout-${g.id}`, () => scoutGuild(guildId!, identity.leaderSecret!, g.id))}
-                        >
-                          🔭 Scout ({SCOUT_COST}🪙)
-                        </button>
-                      )
-                    )}
                     {isLeader && (
                       <button
                         type="button"
@@ -454,7 +436,7 @@ export function GuildMenu({
                         disabled={diploBusy === `propose-${g.id}`}
                         onClick={() => runDiplo(`propose-${g.id}`, () => proposeAlliance(guildId!, identity.leaderSecret!, g.id))}
                       >
-                        Propose
+                        Propose Alliance
                       </button>
                     )}
                   </div>
@@ -467,6 +449,58 @@ export function GuildMenu({
               )}
 
               {diploError && <div className="form-error">{diploError}</div>}
+            </div>
+          )}
+
+          {tab === "scouting" && (
+            <div className="scouting-tab">
+              {(() => {
+                const holdsSeat = Object.values(snapshot.sectorCouncil).includes(guild.id);
+                const scoutCost = Math.max(1, SCOUT_COST - (holdsSeat ? COUNCIL_SCOUT_DISCOUNT : 0));
+                const rivals = snapshot.guilds.filter((g) => g.alive && g.id !== guild.id);
+                return (
+                  <>
+                    <p className="wagers__disclaimer">
+                      🔭 Pay silver to reveal a rival's locked-in call - ticker, sector, and live price - to you alone for the rest of
+                      the round. Costs {scoutCost}🪙{holdsSeat ? " (discounted - you hold a Council Seat)" : ""} per scout, once per
+                      guild per round.
+                    </p>
+                    {!isLeader && <div className="empty-hint">Only your guild's leader can order a scout.</div>}
+                    {rivals.length === 0 && <div className="empty-hint">No rival guilds on the board yet.</div>}
+                    {rivals.map((g) => (
+                      <div key={g.id} className="scout-row">
+                        <FlagBadge color={g.color} decal={g.flagDecal} size={22} />
+                        <span className="diplomacy__name">{g.name}</span>
+                        <span className="scout-row__intel">
+                          {g.proposalTicker ? (
+                            <LiveTicker
+                              ticker={g.proposalTicker}
+                              startPrice={g.proposalStartPrice}
+                              livePrice={g.livePrice}
+                              source={g.liveSource}
+                              sectorKey={g.proposalSectorKey}
+                            />
+                          ) : g.hasProposal ? (
+                            isLeader && (
+                              <button
+                                type="button"
+                                className="diplomacy__btn"
+                                disabled={diploBusy === `scout-${g.id}`}
+                                onClick={() => runDiplo(`scout-${g.id}`, () => scoutGuild(guildId!, identity.leaderSecret!, g.id))}
+                              >
+                                🔭 Scout ({scoutCost}🪙)
+                              </button>
+                            )
+                          ) : (
+                            <span className="scout-row__waiting">Awaiting their call…</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                    {diploError && <div className="form-error">{diploError}</div>}
+                  </>
+                );
+              })()}
             </div>
           )}
 

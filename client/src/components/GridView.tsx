@@ -162,10 +162,10 @@ export function GridView({
 
               {isPrimaryHq && (
                 <div className="hq-castle-wrap">
-                  <CastleIcon color={owner!.color} size="64%" />
-                  <span className="hq-flag-overlay">
-                    <FlagBadge color={owner!.color} decal={owner!.flagDecal} size={22} />
+                  <span className="hq-flag-slot">
+                    <FlagBadge color={owner!.color} decal={owner!.flagDecal} size={26} />
                   </span>
+                  <CastleIcon color={owner!.color} size="52%" />
                 </div>
               )}
 

@@ -96,12 +96,22 @@ export function TreeIcon({ size = 14, seed = 0 }: { size?: number; seed?: number
       </svg>
     );
   }
+  // Rounded/deciduous variant: a single wobbly canopy silhouette (not
+  // overlapping circles) with a lighter facet patch for depth.
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `translateX(${lean}%)` }}>
       <rect x="11.2" y="15" width="1.6" height="7" fill="#5c4327" />
-      <circle cx="9" cy="10" r="5" fill="#4c7a44" />
-      <circle cx="15" cy="9" r="5.5" fill="#3f6b3f" />
-      <circle cx="12" cy="13" r="5" fill="#487a48" />
+      <path
+        d="M5 11 Q4 6.5 9 6 Q10 2.5 15 3.5 Q20 3 20.5 8 Q22 11.5 18 14 Q17.5 17.5 11.5 16.5 Q5.5 17.5 4 13 Q3 11.5 5 11 Z"
+        fill="#3f6b3f"
+        stroke="#2e4726"
+        strokeWidth="0.4"
+      />
+      <path
+        d="M8 10 Q8 6 12 6.5 Q15 5 17.5 7.5 Q19 9.5 17 12 Q17 14.5 13 14 Q8.5 15 7 12 Q6.5 10.5 8 10 Z"
+        fill="#487a48"
+        opacity="0.85"
+      />
     </svg>
   );
 }
@@ -109,12 +119,12 @@ export function TreeIcon({ size = 14, seed = 0 }: { size?: number; seed?: number
 export function RockIcon({ size = 12, seed = 0 }: { size?: number; seed?: number }) {
   const rot = (seed % 7) - 3;
   const s = size + (seed % 5) - 2;
-  if (seed % 3 === 0) {
+  if (seed % 2 === 0) {
     return (
       <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${rot}deg)` }}>
-        <ellipse cx="12" cy="19.5" rx="8" ry="1.4" fill="#000" opacity="0.16" />
-        <circle cx="8" cy="15" r="4.5" fill="#8a8577" stroke="#5c584c" strokeWidth="0.5" />
-        <circle cx="14.5" cy="14" r="5.5" fill="#96917f" stroke="#5c584c" strokeWidth="0.5" />
+        <ellipse cx="12" cy="18.5" rx="9" ry="1.5" fill="#000" opacity="0.17" />
+        <path d="M3 18 L5 12 L9 9 L9 13 L13 8 L18 10 L20 15 L19 18 Z" fill="#8a8577" stroke="#5c584c" strokeWidth="0.6" />
+        <path d="M9 9 L13 8 L14 11 L10 13 Z" fill="#a19c8c" />
       </svg>
     );
   }
@@ -129,12 +139,22 @@ export function RockIcon({ size = 12, seed = 0 }: { size?: number; seed?: number
 
 export function BushIcon({ size = 11, seed = 0 }: { size?: number; seed?: number }) {
   const lean = (seed % 5) - 2;
+  // A single scalloped foliage blob (not stacked circles) with a lighter
+  // facet patch offset inside it for a bit of leafy depth.
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `translateX(${lean}%)` }}>
       <ellipse cx="12" cy="20" rx="7" ry="1.3" fill="#000" opacity="0.15" />
-      <circle cx="8" cy="15" r="5.5" fill="#3f6b3f" />
-      <circle cx="15" cy="14" r="6" fill="#487a48" />
-      <circle cx="12" cy="17" r="5" fill="#4c7a44" />
+      <path
+        d="M4 16 Q3 10.5 8 10 Q9 6 14 6.5 Q19 5.5 20 10.5 Q22 14 18.5 17 Q17.5 20.5 11.5 19.5 Q5.5 20.5 4 16 Z"
+        fill="#3f6b3f"
+        stroke="#2e4726"
+        strokeWidth="0.4"
+      />
+      <path
+        d="M7 14 Q7 10.5 11 10.5 Q13 8.5 16 10 Q18.5 10.5 18 14 Q19 16.5 15.5 17 Q11 18 8 16 Q6 15.5 7 14 Z"
+        fill="#487a48"
+        opacity="0.85"
+      />
     </svg>
   );
 }
@@ -161,6 +181,12 @@ export function KnightIcon({ color, size = 18 }: { color: string; size?: number 
 export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: string; size?: number }) {
   const width = size * 1.15;
   const height = size * 0.8;
+  const flagLeft = size * 0.1;
+  const coin = size * 0.6;
+  // Center the coin on the flag's solid rectangular body, left of the
+  // pointed notch cut into its right edge.
+  const coinLeft = flagLeft + width * 0.42 - coin / 2;
+  const coinTop = height / 2 - coin / 2;
   return (
     <span
       className="flag-badge"
@@ -171,11 +197,15 @@ export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: s
       <svg width={size * 0.12} height={size * 1.25} style={{ position: "absolute", left: 0 }}>
         <rect width="100%" height="100%" fill="#5c4a2e" />
       </svg>
-      <svg width={width} height={height} style={{ position: "absolute", left: size * 0.1, top: 0 }} viewBox="0 0 46 32">
-        <path d="M0 0 H46 L40 8 L46 16 L46 24 L0 32 Z" fill={color} stroke="#000" strokeOpacity="0.25" strokeWidth="0.6" />
+      <svg width={width} height={height} style={{ position: "absolute", left: flagLeft, top: 0 }} viewBox="0 0 46 32">
+        <path d="M0 0 H46 L40 8 L46 16 L46 24 L0 32 Z" fill={color} stroke="#000" strokeOpacity="0.3" strokeWidth="0.6" />
       </svg>
-      <span className="flag-badge__decal" style={{ left: size * 0.1, width, height, fontSize: size * 0.44 }}>
-        {decal}
+      {/* A small parchment coin behind the emblem so it stays legible against
+          any guild color, including dark ones. */}
+      <span className="flag-badge__coin" style={{ left: coinLeft, top: coinTop, width: coin, height: coin }}>
+        <span className="flag-badge__decal" style={{ fontSize: size * 0.42 }}>
+          {decal}
+        </span>
       </span>
     </span>
   );

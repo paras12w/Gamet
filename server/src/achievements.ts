@@ -1,4 +1,11 @@
-export type AchievementKey = "first_alliance" | "first_wager_won" | "first_conquest" | "win_streak_5" | "sector_specialist";
+export type AchievementKey =
+  | "first_alliance"
+  | "first_wager_won"
+  | "first_conquest"
+  | "win_streak_5"
+  | "sector_specialist"
+  | "market_patron"
+  | "ward_saved";
 
 export interface AchievementInfo {
   key: AchievementKey;
@@ -43,5 +50,19 @@ export const ACHIEVEMENTS: Record<AchievementKey, AchievementInfo> = {
     icon: "🎯",
     description: "Won 3 calls in the same kingdom sector.",
     silverReward: 10,
+  },
+  market_patron: {
+    key: "market_patron",
+    name: "Market Patron",
+    icon: "🏪",
+    description: "Made your guild's first purchase from the Market.",
+    silverReward: 5,
+  },
+  ward_saved: {
+    key: "ward_saved",
+    name: "Held the Line",
+    icon: "🛡️",
+    description: "A Palisade Ward absorbed a lost battle for the first time.",
+    silverReward: 8,
   },
 };

@@ -978,6 +978,7 @@ export class GameEngine {
         loser.wards -= 1;
         this.postSystemMessage(loser.id, `🛡️ A Palisade Ward absorbed ${winner.name}'s attack - our border held.`);
         this.postSystemMessage(winner.id, `🛡️ ${loser.name}'s Palisade Ward blunted our advance - no ground gained.`);
+        this.awardAchievement(loser, "ward_saved");
         if (loser.id === a.id) outcomeA = "battle_warded";
         else outcomeB = "battle_warded";
       } else {
@@ -1274,6 +1275,7 @@ export class GameEngine {
     guild.tilePurchasesThisSession += 1;
     this.grantTile(guild, 1);
     this.postSystemMessage(guild.id, `🎒 Bought a field outright for ${cost} silver.`);
+    this.awardAchievement(guild, "market_patron");
     this.emitUpdate();
     return { ok: true };
   }
@@ -1288,6 +1290,7 @@ export class GameEngine {
     updateGuildTokens(guild.id, guild.tokens);
     guild.bridgeCredits += 1;
     this.postSystemMessage(guild.id, `🌉 Bought a Bridge Permit - your next river crossing is toll-free.`);
+    this.awardAchievement(guild, "market_patron");
     this.emitUpdate();
     return { ok: true };
   }
@@ -1304,6 +1307,7 @@ export class GameEngine {
     updateGuildTokens(guild.id, guild.tokens);
     guild.wards += 1;
     this.postSystemMessage(guild.id, `🛡️ Bought a Palisade Ward - your next lost battle will be absorbed instead of costing ground.`);
+    this.awardAchievement(guild, "market_patron");
     this.emitUpdate();
     return { ok: true };
   }
@@ -1320,6 +1324,7 @@ export class GameEngine {
     updateGuildTokens(guild.id, guild.tokens);
     for (const target of targets) target.scoutedBy.add(guild.id);
     this.postSystemMessage(guild.id, `🔭 Spyglass revealed ${targets.length} rival call${targets.length === 1 ? "" : "s"} this round.`);
+    this.awardAchievement(guild, "market_patron");
     this.emitUpdate();
     return { ok: true };
   }
@@ -1342,6 +1347,7 @@ export class GameEngine {
     guild.flagDecal = flagDecal;
     updateGuildFlag(guild.id, guild.color, guild.flagDecal);
     this.postSystemMessage(guild.id, `🎨 The herald unveils a new banner for our guild.`);
+    this.awardAchievement(guild, "market_patron");
     this.emitUpdate();
     return { ok: true };
   }
@@ -1359,6 +1365,7 @@ export class GameEngine {
     guild.title = clean;
     updateGuildTitle(guild.id, guild.title);
     this.postSystemMessage(guild.id, `🏷️ Our guild is now known as "${guild.name}, ${clean}."`);
+    this.awardAchievement(guild, "market_patron");
     this.emitUpdate();
     return { ok: true };
   }

@@ -1,6 +1,25 @@
 import { useMemo, useState } from "react";
 import type { GameStateSnapshot, ResourceKind } from "../types";
-import { BushIcon, CastleIcon, ExchangeIcon, FlagBadge, KnightIcon, LumberCampIcon, MineIcon, NeutralCastleIcon, RoadTile, RockIcon, TreeIcon } from "./icons";
+import {
+  BanditCampIcon,
+  BushIcon,
+  CastleIcon,
+  ExchangeIcon,
+  FlagBadge,
+  FoundryIcon,
+  KnightIcon,
+  LumberCampIcon,
+  MineIcon,
+  NeutralCastleIcon,
+  RefineryIcon,
+  RiverTile,
+  RoadTile,
+  RockIcon,
+  RuinsIcon,
+  TreeIcon,
+  VaultIcon,
+  WatchtowerIcon,
+} from "./icons";
 import { formatCoins } from "../lib/coins";
 
 function hash(x: number, y: number): number {
@@ -13,6 +32,12 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
   lumber: "Lumber Camp",
   mine: "Ore Mine",
   exchange: "Market Exchange",
+  foundry: "Tech Foundry",
+  vault: "Finance Vault",
+  refinery: "Energy Refinery",
+  bandit_camp: "Bandit Camp",
+  ruins: "Ancient Ruins",
+  watchtower: "Watchtower",
 };
 
 const RESOURCE_DESCRIPTION: Record<ResourceKind, string> = {
@@ -20,6 +45,12 @@ const RESOURCE_DESCRIPTION: Record<ResourceKind, string> = {
   lumber: "Stacked timber and a woodsman's axe, left for whoever's strong enough to hold the clearing.",
   mine: "A shaft driven into the hillside, ore glinting in the dark. Worth fighting over.",
   exchange: "A trading post where coin changes hands faster than anywhere else in the realm.",
+  foundry: "Forge-fires and gearwork, humming with Tech-kingdom energy.",
+  vault: "A fortified strongbox, said to make silver breed silver for whoever holds the key.",
+  refinery: "Pipes and drums venting steam - the Energy kingdom's beating heart.",
+  bandit_camp: "A bandit warband camps here, raiding whoever's closest until someone runs them off.",
+  ruins: "Half-buried ruins - a single grab for lost treasure, then just quiet dirt.",
+  watchtower: "A tall lookout with a lit beacon, watching every border it touches.",
 };
 
 const RESOURCE_BUFF: Record<ResourceKind, string> = {
@@ -27,6 +58,12 @@ const RESOURCE_BUFF: Record<ResourceKind, string> = {
   lumber: "This camp's timber reinforces its holder's borders: +1 field automatically every other round.",
   mine: "This mine's ore funds expansion for its holder: +1 field automatically every other round.",
   exchange: "This exchange pays its holder silver directly every other round, instead of expanding your borders.",
+  foundry: "Doubles your Tech-sector tile bonus on a winning Tech call, for as long as you hold it.",
+  vault: "Pays its holder silver interest every other round, scaled to how much silver you're already holding.",
+  refinery: "Doubles your Energy-sector silver bonus on a winning Energy call, for as long as you hold it.",
+  bandit_camp: "Raids silver from the nearest guild every other round until someone captures it.",
+  ruins: "Pays a one-time lump of silver to whoever claims it, then reverts to plain empty land.",
+  watchtower: "Reveals the locked-in call of any rival guild you're currently bordering — free, no scouting cost.",
 };
 
 function ResourceIcon({ kind, owner, size }: { kind: ResourceKind; owner: { color: string } | null; size: number }) {
@@ -34,6 +71,12 @@ function ResourceIcon({ kind, owner, size }: { kind: ResourceKind; owner: { colo
   if (kind === "lumber") return <LumberCampIcon size={size} />;
   if (kind === "mine") return <MineIcon size={size} />;
   if (kind === "exchange") return <ExchangeIcon size={size} />;
+  if (kind === "foundry") return <FoundryIcon size={size} />;
+  if (kind === "vault") return <VaultIcon size={size} />;
+  if (kind === "refinery") return <RefineryIcon size={size} />;
+  if (kind === "bandit_camp") return <BanditCampIcon size={size} />;
+  if (kind === "ruins") return <RuinsIcon size={size} />;
+  if (kind === "watchtower") return <WatchtowerIcon size={size} />;
   return <NeutralCastleIcon size={size} />;
 }
 
@@ -101,7 +144,7 @@ export function GridView({
           const kind: ResourceKind = cell.resourceKind ?? "keep";
 
           const roll = hash(cell.x, cell.y);
-          const isBare = !!cell.owner || cell.type !== "empty";
+          const isBare = !!cell.owner || cell.type !== "empty" || !!cell.river;
           const showTree = !isBare && roll < 12;
           const showRock = !isBare && roll >= 12 && roll < 18;
           const showBush = !isBare && roll >= 18 && roll < 23;
@@ -115,6 +158,7 @@ export function GridView({
             placementMode &&
             !!myGuildId &&
             cell.owner === null &&
+            !cell.river &&
             [
               `${cell.x + 1},${cell.y}`,
               `${cell.x - 1},${cell.y}`,
@@ -140,20 +184,24 @@ export function GridView({
                 isMine ? "grid-cell--mine" : "",
                 clickable ? "grid-cell--clickable" : "",
                 isEligible ? "grid-cell--eligible" : "",
+                cell.river ? "grid-cell--river" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
               onClick={clickable ? handleClick : undefined}
               title={
-                isEligible
-                  ? "Place your banked tile here"
-                  : owner
-                    ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
-                    : isKeep
-                      ? `${RESOURCE_LABEL[kind]} — click for details`
-                      : "Open Field"
+                cell.river
+                  ? "River — can't be settled"
+                  : isEligible
+                    ? "Place your banked tile here"
+                    : owner
+                      ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
+                      : isKeep
+                        ? `${RESOURCE_LABEL[kind]} — click for details`
+                        : "Open Field"
               }
             >
+              {cell.river && <RiverTile seed={cell.x * 7 + cell.y} />}
               {owner && cell.type === "empty" && <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} />}
 
               {showTree && <TreeIcon size={13} seed={cell.x * 7 + cell.y} />}

@@ -3,7 +3,17 @@ export const GLOBAL_CHAT_ID = "global";
 
 export type CellType = "empty" | "castle" | "hq";
 
-export type ResourceKind = "keep" | "lumber" | "mine" | "exchange";
+export type ResourceKind =
+  | "keep"
+  | "lumber"
+  | "mine"
+  | "exchange"
+  | "foundry"
+  | "vault"
+  | "refinery"
+  | "bandit_camp"
+  | "ruins"
+  | "watchtower";
 
 export interface Cell {
   x: number;
@@ -11,6 +21,7 @@ export interface Cell {
   type: CellType;
   owner: string | null;
   resourceKind?: ResourceKind;
+  river?: boolean;
 }
 
 export interface Battle {

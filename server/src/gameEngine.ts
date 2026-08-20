@@ -5,6 +5,7 @@ import {
   blockInBounds,
   cellKey,
   chebyshevDistance,
+  generateRivers,
   inBounds,
   isNearCenter,
   neighborsOf,
@@ -42,7 +43,22 @@ import type {
   Wager,
 } from "./types.js";
 
-const RESOURCE_KINDS: ResourceKind[] = ["keep", "lumber", "mine", "exchange"];
+// Relative weights for neutral castle kinds: the classics are common, the
+// sector structures and Market Exchange show up less often, and the most
+// impactful specials (Bandit Camp, Watchtower, Ruins) are rarer still.
+const RESOURCE_WEIGHTS: [ResourceKind, number][] = [
+  ["keep", 6],
+  ["lumber", 6],
+  ["mine", 6],
+  ["exchange", 4],
+  ["foundry", 3],
+  ["vault", 3],
+  ["refinery", 3],
+  ["ruins", 3],
+  ["bandit_camp", 2],
+  ["watchtower", 2],
+];
+const RESOURCE_WEIGHT_TOTAL = RESOURCE_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
 
 function randomToken(): string {
   return randomBytes(24).toString("hex");
@@ -57,7 +73,12 @@ function randomFlagDecal(): string {
 }
 
 function randomResourceKind(): ResourceKind {
-  return RESOURCE_KINDS[Math.floor(Math.random() * RESOURCE_KINDS.length)];
+  let roll = Math.random() * RESOURCE_WEIGHT_TOTAL;
+  for (const [kind, weight] of RESOURCE_WEIGHTS) {
+    if (roll < weight) return kind;
+    roll -= weight;
+  }
+  return "keep";
 }
 
 export class GameEngine {
@@ -65,6 +86,7 @@ export class GameEngine {
   private guilds = new Map<string, Guild>();
   private battles: Battle[] = [];
   private castles: CellKey[] = [];
+  private rivers = new Set<CellKey>();
   roundNumber = 1;
   sessionNumber = 1;
   roundStartedAt = Date.now();
@@ -89,7 +111,8 @@ export class GameEngine {
 
   private initGrid(): void {
     this.grid.clear();
-    this.castles = scatterNeutralPositions(NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING);
+    this.rivers = generateRivers(CONFIG.RIVER_COUNT);
+    this.castles = scatterNeutralPositions(NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING, this.rivers);
     const castleSet = new Set(this.castles);
     for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
       for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
@@ -101,9 +124,16 @@ export class GameEngine {
           type: isCastle ? "castle" : "empty",
           owner: null,
           resourceKind: isCastle ? randomResourceKind() : undefined,
+          river: this.rivers.has(key) || undefined,
         });
       }
     }
+  }
+
+  /** True if any orthogonal neighbor of `key` is a river tile - used for the
+   * riverside fertility bonus on held resource castles. */
+  private isRiverside(key: CellKey): boolean {
+    return neighborsOf(key).some((n) => this.rivers.has(n));
   }
 
   private restoreGuildsFromDb(): void {
@@ -160,7 +190,7 @@ export class GameEngine {
       if (!blockInBounds(x, y)) return false;
       return blockCells(x, y).every((key) => {
         const cell = this.grid.get(key);
-        return !!cell && cell.type !== "castle" && cell.owner === null;
+        return !!cell && cell.type !== "castle" && cell.owner === null && !cell.river;
       });
     };
     let minDistance = CONFIG.MIN_HQ_DISTANCE;
@@ -519,15 +549,31 @@ export class GameEngine {
     for (const owned of guild.squares) {
       for (const n of neighborsOf(owned)) {
         const cell = this.grid.get(n);
-        if (cell && cell.owner === null) candidates.add(n);
+        if (cell && cell.owner === null && !cell.river) candidates.add(n);
       }
     }
     if (candidates.size === 0) return null;
     const pick = [...candidates][Math.floor(Math.random() * candidates.size)];
     const cell = this.grid.get(pick)!;
-    cell.owner = guild.id;
     guild.squares.add(pick);
+    this.claimCell(guild, cell);
     return pick;
+  }
+
+  /** Assigns ownership of a newly-claimed cell to `guild`, and applies the
+   * one-time Ruins payout (then demotes it back to plain empty land) if
+   * that's what was just claimed. Shared by placeExpansion and placeTile -
+   * the two ways a neutral cell changes hands outside of battle. */
+  private claimCell(guild: Guild, cell: Cell): void {
+    cell.owner = guild.id;
+    if (cell.resourceKind === "ruins") {
+      cell.type = "empty";
+      cell.resourceKind = undefined;
+      this.castles = this.castles.filter((c) => c !== cellKey(cell.x, cell.y));
+      guild.tokens += CONFIG.RUINS_PAYOUT_SILVER;
+      updateGuildTokens(guild.id, guild.tokens);
+      this.postSystemMessage(guild.id, `💰 Ancient ruins unearthed ${CONFIG.RUINS_PAYOUT_SILVER} silver before crumbling to dust.`);
+    }
   }
 
   /** Earns the guild `count` tiles into its bank (1 normally, more for the
@@ -547,11 +593,24 @@ export class GameEngine {
    * belongs to a known sector): Tech adds a bonus tile, Finance/Energy add
    * bonus silver directly. Call only for a guild that has just won this
    * round with a real proposal. */
+  /** Does `guild` currently own at least one castle of `kind`? */
+  private ownsCastleKind(guild: Guild, kind: ResourceKind): boolean {
+    return this.castles.some((c) => {
+      const cell = this.grid.get(c);
+      return cell?.owner === guild.id && cell.resourceKind === kind;
+    });
+  }
+
   private applySectorBonus(guild: Guild): { tileBonus: number; silverBonus: number; sectorKey: string | undefined } {
     const sector = guild.proposal ? sectorForTicker(guild.proposal.ticker) : null;
     if (!sector) return { tileBonus: 0, silverBonus: 0, sectorKey: undefined };
-    const tileBonus = sector.key === "tech" ? SECTOR_TILE_BONUS : 0;
-    const silverBonus = SECTOR_SILVER_BONUS[sector.key] ?? 0;
+    let tileBonus = sector.key === "tech" ? SECTOR_TILE_BONUS : 0;
+    let silverBonus = SECTOR_SILVER_BONUS[sector.key] ?? 0;
+    // Sector structures amplify their own sector's bonus for whoever holds
+    // them - a Foundry doubles the Tech tile bonus, a Refinery doubles the
+    // Energy silver bonus, giving a concrete reason to fight over them.
+    if (sector.key === "tech" && tileBonus > 0 && this.ownsCastleKind(guild, "foundry")) tileBonus *= 2;
+    if (sector.key === "energy" && silverBonus > 0 && this.ownsCastleKind(guild, "refinery")) silverBonus *= 2;
     if (silverBonus > 0) {
       guild.tokens += silverBonus;
       updateGuildTokens(guild.id, guild.tokens);
@@ -592,10 +651,11 @@ export class GameEngine {
     const cell = this.grid.get(key);
     if (!cell) return { ok: false, error: "That field doesn't exist" };
     if (cell.owner !== null) return { ok: false, error: "That field is already claimed" };
+    if (cell.river) return { ok: false, error: "You can't settle a river" };
     const adjacent = neighborsOf(key).some((n) => this.grid.get(n)?.owner === guild.id);
     if (!adjacent) return { ok: false, error: "Must place next to your existing territory" };
-    cell.owner = guild.id;
     guild.squares.add(key);
+    this.claimCell(guild, cell);
     guild.pendingTiles -= 1;
     this.emitUpdate();
     return { ok: true };
@@ -743,12 +803,41 @@ export class GameEngine {
       for (const guild of this.livingGuilds()) {
         const ownedCastles = this.castles.filter((c) => this.grid.get(c)?.owner === guild.id);
         for (const c of ownedCastles) {
-          if (this.grid.get(c)?.resourceKind === "exchange") {
-            guild.tokens += CONFIG.EXCHANGE_SILVER_BUFF;
-            updateGuildTokens(guild.id, guild.tokens);
+          const cell = this.grid.get(c);
+          const kind = cell?.resourceKind;
+          let silverGain = 0;
+          if (kind === "exchange") {
+            silverGain = CONFIG.EXCHANGE_SILVER_BUFF;
+          } else if (kind === "vault") {
+            silverGain = Math.max(CONFIG.VAULT_INTEREST_MIN, Math.floor(guild.tokens * CONFIG.VAULT_INTEREST_RATE));
           } else {
             this.placeExpansion(guild);
           }
+          if (cell && this.isRiverside(c)) silverGain += CONFIG.RIVERSIDE_SILVER_BONUS;
+          if (silverGain > 0) {
+            guild.tokens += silverGain;
+            updateGuildTokens(guild.id, guild.tokens);
+          }
+        }
+      }
+      // Bandit camps raid the nearest living guild's silver until captured.
+      for (const c of this.castles) {
+        const cell = this.grid.get(c);
+        if (cell?.resourceKind !== "bandit_camp" || cell.owner !== null) continue;
+        let nearest: Guild | null = null;
+        let nearestDist = Infinity;
+        for (const guild of this.livingGuilds()) {
+          const d = chebyshevDistance(guild.hq, c);
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearest = guild;
+          }
+        }
+        if (nearest && nearest.tokens > 0) {
+          const raided = Math.min(CONFIG.BANDIT_RAID_SILVER, nearest.tokens);
+          nearest.tokens -= raided;
+          updateGuildTokens(nearest.id, nearest.tokens);
+          this.postSystemMessage(nearest.id, `🏴 Bandits raided ${raided} silver from our coffers - capture their camp to stop the raids.`);
         }
       }
     }
@@ -979,7 +1068,16 @@ export class GameEngine {
   // always stays accurate - just the ticker/price/sector are hidden.
   private toPublicGuild(g: Guild, forGuildId: string | null): PublicGuild {
     const incomingAllianceRequests = [...this.guilds.values()].filter((other) => other.allianceRequestsSent.has(g.id)).map((other) => other.id);
-    const reveal = forGuildId !== null && (forGuildId === g.id || g.scoutedBy.has(forGuildId));
+    // A Watchtower gives free, automatic scouting of any rival you're
+    // currently bordering (i.e. locked in a battle with) - reuses the
+    // battles array as the existing notion of "bordering."
+    const viewer = forGuildId ? this.guilds.get(forGuildId) : null;
+    const watchtowerReveal =
+      !!viewer &&
+      viewer.id !== g.id &&
+      this.ownsCastleKind(viewer, "watchtower") &&
+      this.battles.some((b) => (b.guildA === viewer.id && b.guildB === g.id) || (b.guildB === viewer.id && b.guildA === g.id));
+    const reveal = forGuildId !== null && (forGuildId === g.id || g.scoutedBy.has(forGuildId) || watchtowerReveal);
     const liveQuote = reveal && g.proposal ? priceEngine.peek(g.proposal.ticker) : null;
     return {
       id: g.id,

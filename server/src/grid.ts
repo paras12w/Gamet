@@ -65,8 +65,9 @@ export function isNearCenter(x: number, y: number): boolean {
 
 /** Randomly scattered neutral resource spots, spaced apart from each other.
  * Re-rolled every session (called fresh from initGrid), so the map's
- * contested points move around instead of sitting in the same ring. */
-export function scatterNeutralPositions(count: number, minSpacing: number): CellKey[] {
+ * contested points move around instead of sitting in the same ring.
+ * `avoid` cells (e.g. river tiles) are never chosen. */
+export function scatterNeutralPositions(count: number, minSpacing: number, avoid: Set<CellKey> = new Set()): CellKey[] {
   const size = CONFIG.GRID_SIZE;
   const positions: CellKey[] = [];
   let attempts = 0;
@@ -75,8 +76,45 @@ export function scatterNeutralPositions(count: number, minSpacing: number): Cell
     const x = Math.floor(Math.random() * size);
     const y = Math.floor(Math.random() * size);
     const key = cellKey(x, y);
+    if (avoid.has(key)) continue;
     if (positions.some((p) => chebyshevDistance(p, key) < minSpacing)) continue;
     positions.push(key);
   }
   return positions;
+}
+
+/** Carves `count` winding rivers across the map (roughly edge to edge),
+ * each a random walk biased toward one direction with perpendicular
+ * jitter. About one cell in six along the path is left as a ford - a
+ * normal, claimable gap - so a river narrows travel without sealing the
+ * map into disconnected halves. Returns the blocked (non-ford) river
+ * cells; ford cells are just left out of the result entirely. */
+export function generateRivers(count: number): Set<CellKey> {
+  const size = CONFIG.GRID_SIZE;
+  const river = new Set<CellKey>();
+  for (let i = 0; i < count; i++) {
+    const horizontal = Math.random() < 0.5;
+    let x = horizontal ? 0 : Math.floor(Math.random() * size);
+    let y = horizontal ? Math.floor(Math.random() * size) : 0;
+    let step = 0;
+    while (inBounds(x, y)) {
+      const isFord = step % 6 === 5;
+      if (!isFord) river.add(cellKey(x, y));
+      // occasionally widen the river by a cell for visual variety
+      if (!isFord && Math.random() < 0.3) {
+        const wx = horizontal ? x : x + (Math.random() < 0.5 ? 1 : -1);
+        const wy = horizontal ? y + (Math.random() < 0.5 ? 1 : -1) : y;
+        if (inBounds(wx, wy)) river.add(cellKey(wx, wy));
+      }
+      if (horizontal) x += 1;
+      else y += 1;
+      // perpendicular jitter for a winding path
+      if (Math.random() < 0.55) {
+        if (horizontal) y += Math.random() < 0.5 ? 1 : -1;
+        else x += Math.random() < 0.5 ? 1 : -1;
+      }
+      step++;
+    }
+  }
+  return river;
 }

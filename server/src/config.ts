@@ -1,7 +1,7 @@
 export const CONFIG = {
   PORT: Number(process.env.PORT ?? 4000),
 
-  GRID_SIZE: Number(process.env.GRID_SIZE ?? 25),
+  GRID_SIZE: Number(process.env.GRID_SIZE ?? 50),
 
   // A full round: guild leaders propose a ticker, price is tracked, expansion/battles
   // resolve at the end. Default 3 minutes; override for local testing.
@@ -47,7 +47,7 @@ export const CONFIG = {
   TOP_CALLER_TILE_BONUS: Number(process.env.TOP_CALLER_TILE_BONUS ?? 3),
 
   // Minimum Chebyshev distance enforced between randomly-placed HQs (2x2 blocks).
-  MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 7),
+  MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 12),
 
   // How often the background price-simulation tick advances (ms).
   PRICE_TICK_MS: Number(process.env.PRICE_TICK_MS ?? 4000),
@@ -78,6 +78,26 @@ export const CONFIG = {
   CREATE_GUILD_RATE_MAX: Number(process.env.CREATE_GUILD_RATE_MAX ?? 5),
   CHAT_RATE_WINDOW_MS: Number(process.env.CHAT_RATE_WINDOW_MS ?? 10_000),
   CHAT_RATE_MAX: Number(process.env.CHAT_RATE_MAX ?? 10),
+
+  // Number of winding river paths carved across the map.
+  RIVER_COUNT: Number(process.env.RIVER_COUNT ?? 2),
+
+  // Vault (Finance structure): silver interest on the buff tick, as a
+  // fraction of the guild's current silver, floored at this minimum.
+  VAULT_INTEREST_RATE: Number(process.env.VAULT_INTEREST_RATE ?? 0.05),
+  VAULT_INTEREST_MIN: Number(process.env.VAULT_INTEREST_MIN ?? 2),
+
+  // Bandit Camp: silver raided from the nearest living guild each buff tick
+  // while the camp remains uncaptured.
+  BANDIT_RAID_SILVER: Number(process.env.BANDIT_RAID_SILVER ?? 3),
+
+  // Ruins: one-time silver payout when a guild's territory claims them;
+  // the tile then reverts to plain empty land.
+  RUINS_PAYOUT_SILVER: Number(process.env.RUINS_PAYOUT_SILVER ?? 15),
+
+  // Riverside fertility: bonus silver on the buff tick for a held resource
+  // castle that borders a river tile.
+  RIVERSIDE_SILVER_BONUS: Number(process.env.RIVERSIDE_SILVER_BONUS ?? 2),
 };
 
 // Reserved chat channel id for the realm-wide chat, open to everyone
@@ -90,7 +110,7 @@ export const GLOBAL_CHAT_ID = "global";
 // separate stored value - 100 silver renders as "1 gold".
 export const GOLD_TO_SILVER = 100;
 
-export const NEUTRAL_CASTLE_COUNT = 8;
+export const NEUTRAL_CASTLE_COUNT = 44;
 export const NEUTRAL_MIN_SPACING = 4;
 
 // Chat history kept per guild (in-memory only, doesn't survive a restart).

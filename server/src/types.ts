@@ -4,7 +4,17 @@ export type CellKey = string; // `${x},${y}`
 
 export type CellType = "empty" | "castle" | "hq";
 
-export type ResourceKind = "keep" | "lumber" | "mine" | "exchange";
+export type ResourceKind =
+  | "keep"
+  | "lumber"
+  | "mine"
+  | "exchange"
+  | "foundry" // Tech sector structure: doubles the Tech tile bonus while held
+  | "vault" // Finance sector structure: passive silver interest while held
+  | "refinery" // Energy sector structure: doubles the Energy silver bonus while held
+  | "bandit_camp" // hostile while neutral - raids the nearest guild's silver until captured
+  | "ruins" // one-time silver payout on capture, then reverts to empty land
+  | "watchtower"; // free automatic scouting of guilds you're bordering (in a battle with)
 
 export interface Cell {
   x: number;
@@ -12,6 +22,7 @@ export interface Cell {
   type: CellType;
   owner: string | null; // guild id
   resourceKind?: ResourceKind; // only set when type === "castle"
+  river?: boolean; // unclaimable water tile; never set alongside resourceKind
 }
 
 export interface ChatMessage {

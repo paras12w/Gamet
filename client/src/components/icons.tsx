@@ -4,6 +4,20 @@
 
 const ROAD_COLOR = "#7a6446";
 
+/** A river tile: unclaimable water, rendered as the cell's own background
+ * plus a couple of gentle wave strokes for texture. */
+export function RiverTile({ seed = 0 }: { seed?: number }) {
+  const offset = seed % 5;
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
+      <rect width="24" height="24" fill="#2c5270" />
+      <rect width="24" height="24" fill="#1f3f58" opacity="0.35" />
+      <path d={`M0 ${8 + offset} Q6 ${6 + offset} 12 ${8 + offset} T24 ${8 + offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.6" />
+      <path d={`M0 ${16 - offset} Q6 ${18 - offset} 12 ${16 - offset} T24 ${16 - offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.5" />
+    </svg>
+  );
+}
+
 export function CastleIcon({ color, size = 20 }: { color: string; size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
@@ -79,6 +93,103 @@ export function ExchangeIcon({ size = 20 }: { size?: number }) {
       <text x="17.5" y="17.3" fontSize="1.8" textAnchor="middle" fill="#4a3616" fontFamily="serif">
         $
       </text>
+    </svg>
+  );
+}
+
+/** Tech sector structure: a forge with a glowing gear, doubles the Tech
+ * tile bonus while held. */
+export function FoundryIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
+      <rect x="4" y="13" width="16" height="7" fill="#5c584c" stroke="#2e2c24" strokeWidth="0.5" />
+      <path d="M6 13 L6 7 L9 10 L12 6 L15 10 L18 7 L18 13 Z" fill="#3a3830" stroke="#2e2c24" strokeWidth="0.5" />
+      <circle cx="12" cy="15.5" r="3" fill="#a4302a" opacity="0.9" />
+      <circle cx="12" cy="15.5" r="1.6" fill="#e8b04a" />
+      <path
+        d="M12 12.2 L12.6 13.3 L13.8 13.1 L13.3 14.2 L14.2 15 L13 15.3 L13 16.5 L12 15.8 L11 16.5 L11 15.3 L9.8 15 L10.7 14.2 L10.2 13.1 L11.4 13.3 Z"
+        fill="#d4a843"
+        opacity="0.85"
+      />
+    </svg>
+  );
+}
+
+/** Finance sector structure: a strongbox, grants passive silver interest
+ * while held. */
+export function VaultIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
+      <rect x="4" y="9" width="16" height="11" rx="1.5" fill="#3a3428" stroke="#1f1c15" strokeWidth="0.6" />
+      <rect x="6" y="11" width="12" height="7" fill="#5c5340" stroke="#2e2c24" strokeWidth="0.4" />
+      <circle cx="12" cy="14.5" r="2.4" fill="#d4a843" stroke="#4a3616" strokeWidth="0.5" />
+      <circle cx="12" cy="14.5" r="0.8" fill="#2e2c24" />
+      <rect x="5" y="7.5" width="14" height="2" fill="#7d7666" stroke="#2e2c24" strokeWidth="0.4" />
+    </svg>
+  );
+}
+
+/** Energy sector structure: a drum + pipe rig, doubles the Energy silver
+ * bonus while held. */
+export function RefineryIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
+      <rect x="5" y="10" width="5" height="10" rx="1" fill="#3d5a52" stroke="#1f1c15" strokeWidth="0.5" />
+      <rect x="13" y="6" width="6" height="14" rx="1" fill="#4c7a44" stroke="#1f1c15" strokeWidth="0.5" />
+      <rect x="6" y="12" width="3" height="1.4" fill="#2e2c24" />
+      <rect x="14" y="9" width="4" height="1.4" fill="#2e2c24" />
+      <rect x="14" y="13" width="4" height="1.4" fill="#2e2c24" />
+      <path d="M10 15 H13" stroke="#7d7666" strokeWidth="1.4" />
+      <circle cx="16" cy="4.5" r="1.8" fill="#a4302a" opacity="0.85" />
+    </svg>
+  );
+}
+
+/** Hostile neutral spot: raids the nearest guild's silver until captured. */
+export function BanditCampIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.2" />
+      <path d="M4 20 L12 8 L20 20 Z" fill="#3a2e22" stroke="#1f1710" strokeWidth="0.6" />
+      <path d="M12 8 L12 20" stroke="#1f1710" strokeWidth="0.5" opacity="0.4" />
+      <circle cx="12" cy="14.5" r="3.4" fill="#e8dfc4" stroke="#2e2c24" strokeWidth="0.5" />
+      <circle cx="10.6" cy="13.8" r="0.8" fill="#1f1c15" />
+      <circle cx="13.4" cy="13.8" r="0.8" fill="#1f1c15" />
+      <path d="M10.4 16 Q12 17 13.6 16" fill="none" stroke="#1f1c15" strokeWidth="0.6" />
+    </svg>
+  );
+}
+
+/** One-time neutral spot: pays a lump silver sum on capture, then reverts
+ * to plain empty land. */
+export function RuinsIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="20.5" rx="9" ry="1.4" fill="#000" opacity="0.18" />
+      <rect x="4" y="10" width="2.6" height="10" fill="#8a8577" stroke="#5c584c" strokeWidth="0.4" />
+      <rect x="10.7" y="7" width="2.6" height="13" fill="#96917f" stroke="#5c584c" strokeWidth="0.4" />
+      <rect x="17.4" y="12" width="2.6" height="8" fill="#8a8577" stroke="#5c584c" strokeWidth="0.4" />
+      <path d="M4 10 L6.6 10 L9 8 L4 8 Z" fill="#7d7666" opacity="0.8" />
+      <circle cx="12" cy="4.5" r="1.6" fill="#d4a843" opacity="0.85" />
+    </svg>
+  );
+}
+
+/** Neutral spot: free automatic scouting of any rival guild you're
+ * currently bordering. */
+export function WatchtowerIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="21" rx="7" ry="1.3" fill="#000" opacity="0.18" />
+      <path d="M8 20 L9.5 6 H14.5 L16 20 Z" fill="#7d7666" stroke="#4a453a" strokeWidth="0.5" />
+      <rect x="8.5" y="15" width="7" height="2" fill="#5c584c" />
+      <rect x="9" y="3" width="6" height="3.5" fill="#5c584c" stroke="#2e2c24" strokeWidth="0.4" />
+      <circle cx="12" cy="4.7" r="1.3" fill="#e8b04a">
+        <animate attributeName="opacity" values="1;0.4;1" dur="1.6s" repeatCount="indefinite" />
+      </circle>
     </svg>
   );
 }

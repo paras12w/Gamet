@@ -83,7 +83,19 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
               <p>
                 Ancient keeps, lumber camps, and ore mines dot the realm, unclaimed by anyone. Hold one and your lands grow
                 on their own every other round. A rarer 🏪 Market Exchange pays silver directly instead of expanding your
-                borders.
+                borders, and three sector structures - 🏭 Foundry, 🏦 Vault, 🛢️ Refinery - double that sector's bonus for
+                whoever holds them.
+              </p>
+            </div>
+          </div>
+          <div className="rules-item">
+            <span className="rules-item__icon">🌊</span>
+            <div>
+              <h3>Rivers and rarer finds</h3>
+              <p>
+                Rivers cut across the realm and can't be settled, narrowing where you can expand - except at their fords.
+                🏴 Bandit Camps raid whoever's nearest until captured, 🗿 Ruins pay a one-time hoard of silver then crumble
+                to dirt, and a 🗼 Watchtower reveals any rival you're bordering for free, no scouting required.
               </p>
             </div>
           </div>

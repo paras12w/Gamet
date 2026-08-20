@@ -29,13 +29,14 @@ export function MiniMap({ snapshot, myGuildId }: { snapshot: GameStateSnapshot; 
           let isMine = false;
           if (mode === "heat") {
             const intensity = heatIndex.get(key) ?? 0;
-            background = intensity > 0 ? `rgba(232, 90, 42, ${0.25 + intensity * 0.65})` : "var(--grass-dark)";
+            background = intensity > 0 ? `rgba(232, 90, 42, ${0.25 + intensity * 0.65})` : cell.river ? "#2c5270" : "var(--grass-dark)";
           } else {
             const owner = cell.owner ? guildsById.get(cell.owner) : null;
             isMine = owner?.id === myGuildId;
-            background = "var(--grass-dark)";
             if (owner) background = owner.color;
+            else if (cell.river) background = "#2c5270";
             else if (cell.type === "castle") background = "var(--gold)";
+            else background = "var(--grass-dark)";
           }
           return <div key={key} className={isMine ? "minimap__cell minimap__cell--mine" : "minimap__cell"} style={{ background }} />;
         })}

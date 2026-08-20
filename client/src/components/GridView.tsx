@@ -7,7 +7,6 @@ import {
   ExchangeIcon,
   FlagBadge,
   FoundryIcon,
-  HqPennant,
   KnightIcon,
   LumberCampIcon,
   MineIcon,
@@ -22,6 +21,10 @@ import {
   WatchtowerIcon,
 } from "./icons";
 import { formatCoins } from "../lib/coins";
+
+// Mirrors server/src/config.ts CONFIG.BRIDGE_TOLL_SILVER - display only,
+// same pattern as GuildBar's MAX_PENDING_TILES mirror.
+const BRIDGE_TOLL_SILVER = 6;
 
 function hash(x: number, y: number): number {
   const h = (x * 374761393 + y * 668265263) ^ (x << 13);
@@ -106,16 +109,38 @@ export function GridView({
     zoomRef.current = zoom;
   }, [zoom]);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const gridInnerRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number; dragged: boolean } | null>(null);
   const activePointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDist = useRef<number | null>(null);
   const lastTap = useRef<{ x: number; y: number; at: number } | null>(null);
+  // A pinch or fast wheel-zoom fires many events per second; committing a
+  // setState (and the re-render of up to 2500 cell elements that follows)
+  // on every single one of them is what made zooming feel choppy. The
+  // transform itself is applied straight to the DOM via this ref so the
+  // paint keeps up with your fingers immediately - React state (for the %
+  // label and the --zoomed class) just follows along, batched to once per
+  // animation frame instead of once per event.
+  const zoomRafPending = useRef(false);
 
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 4;
 
   function clampZoom(next: number): number {
     return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
+  }
+
+  function applyZoomTransform(z: number) {
+    if (gridInnerRef.current) gridInnerRef.current.style.transform = `scale(${z})`;
+  }
+
+  function scheduleZoomStateSync() {
+    if (zoomRafPending.current) return;
+    zoomRafPending.current = true;
+    requestAnimationFrame(() => {
+      zoomRafPending.current = false;
+      setZoom(zoomRef.current);
+    });
   }
 
   /** Zoom to `nextZoom`, keeping whatever's under viewport-relative point
@@ -131,11 +156,13 @@ export function GridView({
       el.scrollTop = (el.scrollTop + localY) * ratio - localY;
     }
     zoomRef.current = clamped;
-    setZoom(clamped);
+    applyZoomTransform(clamped);
+    scheduleZoomStateSync();
   }
 
   function resetZoom() {
     zoomRef.current = 1;
+    applyZoomTransform(1);
     setZoom(1);
     const el = viewportRef.current;
     if (el) {
@@ -257,6 +284,7 @@ export function GridView({
   const selectedOwner = selectedCell?.owner ? guildsById.get(selectedCell.owner) : null;
   const selectedKind: ResourceKind = selectedCell?.resourceKind ?? "keep";
   const selectedIsHq = selectedCell?.type === "hq";
+  const selectedIsRiver = !!selectedCell?.river;
   const selectedRank = selectedOwner ? rankedGuilds.findIndex((g) => g.id === selectedOwner.id) + 1 : 0;
 
   let popupStyle: React.CSSProperties | undefined;
@@ -292,6 +320,7 @@ export function GridView({
         onPointerCancel={handlePointerUp}
       >
       <div
+        ref={gridInnerRef}
         className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}${placementMode ? " grid-view--placing" : ""}`}
         style={{
           gridTemplateColumns: `repeat(${snapshot.gridSize}, 1fr)`,
@@ -333,12 +362,12 @@ export function GridView({
               `${cell.x},${cell.y - 1}`,
             ].some((n) => cellsByKey.get(n)?.owner === myGuildId);
 
-          const clickable = isEligible || isKeep || isHq;
+          const clickable = isEligible || isKeep || isHq || !!cell.river;
 
           function handleClick(e: React.MouseEvent<HTMLDivElement>) {
             if (isEligible) {
               onPlaceTile(cell.x, cell.y);
-            } else if (isKeep || isHq) {
+            } else if (isKeep || isHq || cell.river) {
               const wrapRect = wrapRef.current?.getBoundingClientRect();
               const cellRect = e.currentTarget.getBoundingClientRect();
               if (wrapRect) {
@@ -371,11 +400,13 @@ export function GridView({
               onClick={clickable ? handleClick : undefined}
               title={
                 cell.riverCrossing
-                  ? isEligible
-                    ? "Bridge crossing — place a banked tile here to pay the toll and settle it"
-                    : "Bridge crossing — unclaimed"
+                  ? owner
+                    ? `Bridge crossing — bridged by ${owner.name}, click for details`
+                    : isEligible
+                      ? "Bridge crossing — place a banked tile here to pay the toll and settle it"
+                      : "Bridge crossing — unclaimed, click for details"
                   : cell.river
-                    ? "River — can't be settled"
+                    ? "River — can't be settled, click for details"
                     : isEligible
                       ? "Place your banked tile here"
                       : owner
@@ -385,8 +416,19 @@ export function GridView({
                           : "Open Field"
               }
             >
-              {cell.river && <RiverTile seed={cell.x * 7 + cell.y} vertical={cell.riverFlowsAlongX} crossing={cell.riverCrossing} />}
-              {owner && cell.type === "empty" && <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} />}
+              {cell.river && (
+                <RiverTile
+                  // Seeded off the axis that stays CONSTANT along the flow
+                  // (y for a vertical-flowing river, x for a horizontal one)
+                  // so consecutive tiles down the same lane share a wave
+                  // phase and the texture reads as continuous instead of
+                  // jumping to a new unaligned pattern every tile.
+                  seed={cell.riverFlowsAlongX ? cell.y : cell.x}
+                  vertical={cell.riverFlowsAlongX}
+                  crossing={cell.riverCrossing}
+                />
+              )}
+              {owner && cell.type === "empty" && !cell.river && <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} />}
 
               {showTree && <TreeIcon size={13} seed={cell.x * 7 + cell.y} />}
               {showRock && <RockIcon size={12} seed={cell.x * 5 + cell.y * 3} />}
@@ -394,10 +436,7 @@ export function GridView({
 
               {isPrimaryHq && (
                 <div className="hq-castle-wrap">
-                  <CastleIcon color={owner!.color} size="64%" />
-                  <span className="hq-pennant">
-                    <HqPennant color={owner!.color} size={9} />
-                  </span>
+                  <CastleIcon color={owner!.color} size="72%" />
                 </div>
               )}
 
@@ -438,7 +477,40 @@ export function GridView({
         </div>
       )}
 
-      {selectedCell && !selectedIsHq && (
+      {selectedCell && selectedIsRiver && (
+        <div className="keep-info keep-info--floating" style={popupStyle}>
+          <button className="keep-info__close" onClick={closePopup} aria-label="Close">
+            ×
+          </button>
+          <div className="keep-info__badge">
+            {selectedOwner ? (
+              <FlagBadge color={selectedOwner.color} decal={selectedOwner.flagDecal} size={56} />
+            ) : (
+              <span style={{ fontSize: 40 }}>{selectedCell.riverCrossing ? "🌉" : "🌊"}</span>
+            )}
+          </div>
+          <div>
+            <h3>{selectedCell.riverCrossing ? "Bridge Crossing" : "River"}</h3>
+            <p className="keep-info__status">
+              {selectedOwner ? `Bridged by ${selectedOwner.name}` : selectedCell.riverCrossing ? "Unclaimed" : "Impassable"}
+            </p>
+            <p className="keep-info__desc">
+              {selectedCell.riverCrossing
+                ? "A shallow ford, worn smooth by old cart tracks - solid enough to build a bridge on."
+                : "Deep, fast water. No bridge here - territory can't cross it."}
+            </p>
+            <p className="keep-info__buff">
+              {selectedCell.riverCrossing
+                ? selectedOwner
+                  ? "⚡ Claimed - this bank's territory now continues across the river here."
+                  : `⚡ Place a banked tile here to pay a ${BRIDGE_TOLL_SILVER}-silver toll and claim it, once it borders your territory.`
+                : "⚡ The river runs on for a while yet - find a bridge crossing to get your territory across."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {selectedCell && !selectedIsHq && !selectedIsRiver && (
         <div className="keep-info keep-info--floating" style={popupStyle}>
           <button className="keep-info__close" onClick={closePopup} aria-label="Close">
             ×

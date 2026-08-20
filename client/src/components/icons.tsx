@@ -334,20 +334,6 @@ export function KnightIcon({ color, size = 18 }: { color: string; size?: number 
   );
 }
 
-/** A tiny color-only corner pennant marking a guild's HQ on the board -
- * deliberately no coin/decal/text at this scale (illegible and it kept
- * overlapping the castle icon underneath). Click the HQ for the full
- * FlagBadge with decal in the info popup instead. */
-export function HqPennant({ color, size = 9 }: { color: string; size?: number }) {
-  const height = size * 1.3;
-  return (
-    <svg width={size} height={height} viewBox="0 0 10 13" aria-hidden="true">
-      <rect x="0" y="0" width="1.4" height="13" fill="#5c4a2e" />
-      <path d="M1.4 0 H10 L7.5 3.2 L10 6.4 H1.4 Z" fill={color} stroke="#000" strokeOpacity="0.3" strokeWidth="0.3" />
-    </svg>
-  );
-}
-
 export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: string; size?: number }) {
   const width = size * 1.15;
   const height = size * 0.8;
@@ -381,11 +367,11 @@ export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: s
   );
 }
 
-/** Auto-connecting dirt path, full tile-width on every connected side (not
- * a thin center line) - each active direction fills that whole half of the
- * tile edge-to-edge, so a straight stretch or a turn reads as a solid worn
- * path rather than a stripe, and only an isolated field (no connections)
- * gets a small dot instead of a full fill. */
+/** Auto-connecting dirt path: a half-tile-wide ribbon running through the
+ * CENTER of the tile toward each connected edge (not a full-half-tile
+ * fill flush to the border), so it reads as an actual path/trail rather
+ * than a solid block, and only an isolated field (no connections) gets a
+ * small dot instead. */
 export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w: boolean }) {
   const active = n || s || e || w;
 
@@ -399,11 +385,11 @@ export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w
 
   return (
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-      {n && <rect x="0" y="0" width="24" height="13" fill={ROAD_COLOR} />}
-      {s && <rect x="0" y="11" width="24" height="13" fill={ROAD_COLOR} />}
-      {e && <rect x="11" y="0" width="13" height="24" fill={ROAD_COLOR} />}
-      {w && <rect x="0" y="0" width="13" height="24" fill={ROAD_COLOR} />}
-      <rect x="7" y="7" width="10" height="10" fill={ROAD_COLOR} />
+      {n && <rect x="6" y="0" width="12" height="13" fill={ROAD_COLOR} />}
+      {s && <rect x="6" y="11" width="12" height="13" fill={ROAD_COLOR} />}
+      {e && <rect x="11" y="6" width="13" height="12" fill={ROAD_COLOR} />}
+      {w && <rect x="0" y="6" width="13" height="12" fill={ROAD_COLOR} />}
+      <rect x="6" y="6" width="12" height="12" fill={ROAD_COLOR} />
     </svg>
   );
 }

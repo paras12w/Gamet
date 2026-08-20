@@ -15,11 +15,19 @@ const OUTCOME_LABEL: Record<RoundResultEntry["outcome"], string> = {
 
 function tileOutcomeLabel(r: RoundResultEntry): string | null {
   if (!r.tileOutcome) return null;
-  const isTop = (r.tilesGranted ?? 1) > 1;
+  // r.topCaller (not tilesGranted > 1!) is the only reliable signal - a
+  // sector bonus can also push tilesGranted above 1 for a guild that
+  // wasn't the round's actual best-performing call.
   if (r.tileOutcome === "banked") {
-    return isTop ? ` · 🥇 top call — ${r.tilesGranted} tiles banked!` : " · 🎒 tile banked";
+    return r.topCaller
+      ? ` · 🥇 top call — ${r.tilesGranted} tiles banked!`
+      : (r.tilesGranted ?? 1) > 1
+        ? ` · 🎒 ${r.tilesGranted} tiles banked`
+        : " · 🎒 tile banked";
   }
-  return isTop ? ` · 🔥 top call, but the bank overflowed — some tiles destroyed` : " · 🔥 tile destroyed (bank full)";
+  return r.topCaller
+    ? ` · 🔥 top call, but the bank overflowed — some tiles destroyed`
+    : " · 🔥 tile destroyed (bank full)";
 }
 
 function sectorLabel(r: RoundResultEntry): string | null {

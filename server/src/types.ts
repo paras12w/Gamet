@@ -80,6 +80,10 @@ export interface RoundResultEntry {
   // Set on a win when the called ticker belongs to a known sector/kingdom.
   sectorKey?: string;
   sectorSilverBonus?: number;
+  // True only for the round's single actual best-performing call - distinct
+  // from tilesGranted > 1, which a sector bonus can also produce on its own
+  // for a guild that wasn't the top caller at all.
+  topCaller?: boolean;
 }
 
 export interface RoundHistoryEntry {

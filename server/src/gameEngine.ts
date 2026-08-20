@@ -926,7 +926,10 @@ export class GameEngine {
       let outcomeA: RoundResultEntry["outcome"], outcomeB: RoundResultEntry["outcome"];
 
       if (pa === pb) {
-        results.push(this.buildResult(a, infoA, "battle_tied"), this.buildResult(b, infoB, "battle_tied"));
+        results.push(
+          this.buildResult(a, infoA, "battle_tied", undefined, undefined, undefined, undefined, topGuildIds.has(a.id)),
+          this.buildResult(b, infoB, "battle_tied", undefined, undefined, undefined, undefined, topGuildIds.has(b.id))
+        );
         continue; // tie: no capture, no streak change
       }
 
@@ -965,7 +968,8 @@ export class GameEngine {
           a.id === winner.id ? bonusTileOutcome : undefined,
           a.id === winner.id ? winnerTileCount : undefined,
           a.id === winner.id ? winnerSector.sectorKey : undefined,
-          a.id === winner.id ? winnerSector.silverBonus : undefined
+          a.id === winner.id ? winnerSector.silverBonus : undefined,
+          topGuildIds.has(a.id)
         ),
         this.buildResult(
           b,
@@ -974,7 +978,8 @@ export class GameEngine {
           b.id === winner.id ? bonusTileOutcome : undefined,
           b.id === winner.id ? winnerTileCount : undefined,
           b.id === winner.id ? winnerSector.sectorKey : undefined,
-          b.id === winner.id ? winnerSector.silverBonus : undefined
+          b.id === winner.id ? winnerSector.silverBonus : undefined,
+          topGuildIds.has(b.id)
         )
       );
     }
@@ -992,7 +997,7 @@ export class GameEngine {
         const sector = this.applySectorBonus(guild);
         const tileCount = tileCountFor(guild.id) + sector.tileBonus;
         const tileOutcome = this.grantTile(guild, tileCount);
-        results.push(this.buildResult(guild, info, "expanded", tileOutcome, tileCount, sector.sectorKey, sector.silverBonus));
+        results.push(this.buildResult(guild, info, "expanded", tileOutcome, tileCount, sector.sectorKey, sector.silverBonus, topGuildIds.has(guild.id)));
       } else {
         results.push(this.buildResult(guild, info, "no_change"));
       }
@@ -1075,7 +1080,8 @@ export class GameEngine {
     tileOutcome?: "banked" | "destroyed",
     tilesGranted?: number,
     sectorKey?: string,
-    sectorSilverBonus?: number
+    sectorSilverBonus?: number,
+    topCaller?: boolean
   ): RoundResultEntry {
     return {
       guildId: guild.id,
@@ -1089,6 +1095,11 @@ export class GameEngine {
       tilesGranted,
       sectorKey,
       sectorSilverBonus,
+      // Whether THIS guild's own call was the round's single best performer
+      // (see topGuildIds in resolveRound) - distinct from tilesGranted > 1,
+      // which a sector bonus can also produce for a guild that wasn't the
+      // top caller at all.
+      topCaller,
     };
   }
 

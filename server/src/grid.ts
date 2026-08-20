@@ -130,19 +130,37 @@ export function generateRivers(count: number): Map<CellKey, RiverCell> {
         else x += Math.random() < 0.5 ? 1 : -1;
       }
     }
+    // Mark crossings first (every ~6th path cell), then widen: a stretch
+    // where the river runs two cells wide on a *fixed* side for a whole
+    // contiguous run, rather than an independent per-cell coin flip - which
+    // used to leave stray gaps in the "wide" side, since a widened cell
+    // wasn't always adjacent to the next one along the run. A widened cell
+    // also inherits its parent path cell's crossing status, so a bridge
+    // spans the river's full width at that point instead of leaving one of
+    // the two lanes uncrossable.
     path.forEach((key, idx) => {
       const crossing = idx % 6 === 5;
       if (!river.has(key) || crossing) river.set(key, { flowsAlongX, crossing });
-      // occasionally widen the river by a cell for visual variety - stays
-      // orthogonally adjacent to its own parent path cell.
-      if (!crossing && Math.random() < 0.3) {
-        const { x: px, y: py } = parseKey(key);
-        const wx = flowsAlongX ? px : px + (Math.random() < 0.5 ? 1 : -1);
-        const wy = flowsAlongX ? py + (Math.random() < 0.5 ? 1 : -1) : py;
-        const wKey = cellKey(wx, wy);
-        if (inBounds(wx, wy) && !river.has(wKey)) river.set(wKey, { flowsAlongX, crossing: false });
-      }
     });
+
+    let widening = false;
+    let widenSide = 1;
+    for (const key of path) {
+      if (!widening && Math.random() < 0.06) {
+        widening = true;
+        widenSide = Math.random() < 0.5 ? 1 : -1;
+      } else if (widening && Math.random() < 0.2) {
+        widening = false;
+      }
+      if (!widening) continue;
+      const { x: px, y: py } = parseKey(key);
+      const wx = flowsAlongX ? px : px + widenSide;
+      const wy = flowsAlongX ? py + widenSide : py;
+      if (!inBounds(wx, wy)) continue;
+      const wKey = cellKey(wx, wy);
+      if (river.has(wKey)) continue; // never clobber a real path cell
+      river.set(wKey, { flowsAlongX, crossing: river.get(key)!.crossing });
+    }
   }
   return river;
 }

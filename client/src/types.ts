@@ -60,6 +60,7 @@ export interface RoundResultEntry {
   tilesGranted?: number;
   sectorKey?: string;
   sectorSilverBonus?: number;
+  topCaller?: boolean;
 }
 
 export interface RoundHistoryEntry {

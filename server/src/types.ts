@@ -124,6 +124,7 @@ export interface Guild {
   sectorWins: Record<string, number>; // wins per sector key, drives sector_specialist, specialization perks, and the council seat; resets on server restart
   currentStreak: number; // consecutive rounds this guild has won (any outcome); resets on server restart
   recentWinSectors: string[]; // last 3 sectors won in, oldest first; drives the diversification bonus; resets on server restart
+  isBot: boolean; // true for an always-on AI-controlled guild; never surfaced to clients
 }
 
 export interface PublicGuild {

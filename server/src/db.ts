@@ -23,6 +23,7 @@ db.exec(`
     takeovers INTEGER NOT NULL DEFAULT 0,
     tagline TEXT NOT NULL DEFAULT '',
     achievements TEXT NOT NULL DEFAULT '[]',
+    is_bot INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
   );
 
@@ -48,6 +49,7 @@ if (!hasColumn("sessions_won")) db.exec(`ALTER TABLE guilds ADD COLUMN sessions_
 if (!hasColumn("takeovers")) db.exec(`ALTER TABLE guilds ADD COLUMN takeovers INTEGER NOT NULL DEFAULT 0`);
 if (!hasColumn("tagline")) db.exec(`ALTER TABLE guilds ADD COLUMN tagline TEXT NOT NULL DEFAULT ''`);
 if (!hasColumn("achievements")) db.exec(`ALTER TABLE guilds ADD COLUMN achievements TEXT NOT NULL DEFAULT '[]'`);
+if (!hasColumn("is_bot")) db.exec(`ALTER TABLE guilds ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0`);
 
 export interface GuildRow {
   id: string;
@@ -62,13 +64,14 @@ export interface GuildRow {
   takeovers: number;
   tagline: string;
   achievements: string;
+  is_bot: number;
   created_at: number;
 }
 
 export function insertGuildRow(row: GuildRow): void {
   db.prepare(
-    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, sessions_won, takeovers, tagline, achievements, created_at)
-     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @sessions_won, @takeovers, @tagline, @achievements, @created_at)`
+    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, sessions_won, takeovers, tagline, achievements, is_bot, created_at)
+     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @sessions_won, @takeovers, @tagline, @achievements, @is_bot, @created_at)`
   ).run(row);
 }
 

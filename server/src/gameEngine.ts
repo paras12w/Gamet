@@ -16,6 +16,18 @@ import { isMarketOpen, priceEngine } from "./priceEngine.js";
 import { SECTOR_SILVER_BONUS, SECTOR_TILE_BONUS, SECTORS, sectorForTicker } from "./sectors.js";
 import { ACHIEVEMENTS, type AchievementKey } from "./achievements.js";
 import {
+  BOT_ALLIANCE_ACCEPT_CHANCE,
+  BOT_ALLIANCE_PROPOSE_CHANCE,
+  BOT_COUNT,
+  BOT_GUILD_NAMES,
+  BOT_SCOUT_CHANCE,
+  BOT_TICKER_POOL,
+  BOT_USERNAMES,
+  BOT_WAGER_ACCEPT_CHANCE,
+  BOT_WAGER_PROPOSE_CHANCE,
+  BOT_WAGER_STAKE_FRACTION,
+} from "./bots.js";
+import {
   getTopGuildsByTokens,
   insertGuildRow,
   loadAllGuildRows,
@@ -113,12 +125,98 @@ export class GameEngine {
     this.initGrid();
     this.restoreGuildsFromDb();
     this.rollNewContract();
+    this.ensureBots();
+    this.runBotActions().catch((err) => console.error("[gamet] initial bot actions failed", err));
     this.scheduleNextRound();
   }
 
   private rollNewContract(): void {
     const sectorKey = KINGDOM_SECTORS[Math.floor(Math.random() * KINGDOM_SECTORS.length)];
     this.activeContract = { sectorKey, target: CONFIG.CONTRACT_TARGET, reward: CONFIG.CONTRACT_REWARD, progress: {} };
+  }
+
+  /** Tops up to BOT_COUNT always-on AI guilds, reusing any that already
+   * exist in the DB from a previous run instead of duplicating them. */
+  private ensureBots(): void {
+    const existingBotNames = new Set([...this.guilds.values()].filter((g) => g.isBot).map((g) => g.name));
+    for (let i = 0; i < BOT_COUNT; i++) {
+      const name = BOT_GUILD_NAMES[i];
+      if (existingBotNames.has(name)) continue;
+      this.createGuild(name, BOT_USERNAMES[i], undefined, undefined, true);
+    }
+  }
+
+  /** All the ways a bot's own territory can still grow - reused from
+   * placeExpansion's candidate logic but returning every option instead of
+   * auto-picking one, so a bot can place its whole banked-tile queue. */
+  private eligiblePlacementCells(guild: Guild): CellKey[] {
+    const candidates = new Set<CellKey>();
+    for (const owned of guild.squares) {
+      for (const n of neighborsOf(owned)) {
+        const cell = this.grid.get(n);
+        if (cell && cell.owner === null && !cell.river) candidates.add(n);
+      }
+    }
+    return [...candidates];
+  }
+
+  /** Drives every AI-controlled guild through one round's worth of
+   * decisions, using the exact same public methods a real client calls -
+   * propose, scout, place tiles, propose/respond to alliances and wagers.
+   * The only thing a bot never does is chat. */
+  private async runBotActions(): Promise<void> {
+    const bots = this.livingGuilds().filter((g) => g.isBot);
+    for (const bot of bots) {
+      for (const other of this.guilds.values()) {
+        if (!other.allianceRequestsSent.has(bot.id)) continue;
+        this.respondAlliance(bot.id, bot.leaderSecret, other.id, Math.random() < BOT_ALLIANCE_ACCEPT_CHANCE);
+      }
+
+      for (const w of this.wagers) {
+        if (w.status !== "pending" || w.toGuild !== bot.id) continue;
+        const accept = bot.tokens >= w.amount && Math.random() < BOT_WAGER_ACCEPT_CHANCE;
+        this.respondWager(bot.id, bot.leaderSecret, w.id, accept);
+      }
+
+      while (bot.pendingTiles > 0) {
+        const candidates = this.eligiblePlacementCells(bot);
+        if (candidates.length === 0) break;
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        const before = bot.pendingTiles;
+        this.placeTile(bot.id, bot.leaderSecret, pick);
+        if (bot.pendingTiles >= before) break; // placement failed - avoid looping forever
+      }
+
+      if (!bot.proposal) {
+        const ticker = BOT_TICKER_POOL[Math.floor(Math.random() * BOT_TICKER_POOL.length)];
+        await this.proposeTicker(bot.id, bot.leaderSecret, ticker);
+      }
+
+      if (Math.random() < BOT_SCOUT_CHANCE) {
+        const targets = this.livingGuilds().filter((g) => g.id !== bot.id && g.proposal && !g.scoutedBy.has(bot.id));
+        if (targets.length > 0) {
+          const target = targets[Math.floor(Math.random() * targets.length)];
+          this.scoutGuild(bot.id, bot.leaderSecret, target.id);
+        }
+      }
+
+      if (Math.random() < BOT_ALLIANCE_PROPOSE_CHANCE) {
+        const targets = this.livingGuilds().filter((g) => g.id !== bot.id && !bot.allies.has(g.id) && !bot.allianceRequestsSent.has(g.id));
+        if (targets.length > 0) {
+          const target = targets[Math.floor(Math.random() * targets.length)];
+          this.proposeAlliance(bot.id, bot.leaderSecret, target.id);
+        }
+      }
+
+      if (Math.random() < BOT_WAGER_PROPOSE_CHANCE && bot.tokens > 0) {
+        const targets = this.livingGuilds().filter((g) => g.id !== bot.id);
+        if (targets.length > 0) {
+          const target = targets[Math.floor(Math.random() * targets.length)];
+          const amount = Math.max(1, Math.floor(bot.tokens * BOT_WAGER_STAKE_FRACTION));
+          this.proposeWager(bot.id, bot.leaderSecret, target.id, amount);
+        }
+      }
+    }
   }
 
   // ---------- setup ----------
@@ -181,6 +279,7 @@ export class GameEngine {
         sectorWins: {},
         currentStreak: 0,
         recentWinSectors: [],
+        isBot: !!row.is_bot,
       };
       this.guilds.set(guild.id, guild);
       this.placeHq(guild);
@@ -233,7 +332,8 @@ export class GameEngine {
     name: string,
     leaderUsername: string,
     flagColor?: string,
-    flagDecal?: string
+    flagDecal?: string,
+    isBot = false
   ): { guild: Guild; secret: string } {
     const secret = randomToken();
     const guild: Guild = {
@@ -264,6 +364,7 @@ export class GameEngine {
       sectorWins: {},
       currentStreak: 0,
       recentWinSectors: [],
+      isBot,
     };
     this.guilds.set(guild.id, guild);
     this.placeHq(guild);
@@ -281,6 +382,7 @@ export class GameEngine {
       takeovers: guild.takeovers,
       tagline: guild.tagline,
       achievements: JSON.stringify([]),
+      is_bot: isBot ? 1 : 0,
       created_at: guild.createdAt,
     });
 
@@ -906,6 +1008,7 @@ export class GameEngine {
       guild.proposal = null;
       guild.scoutedBy = new Set();
     }
+    this.runBotActions().catch((err) => console.error("[gamet] bot actions failed", err));
     this.lastRoundResults = results;
     if (results.length > 0) {
       this.roundHistory.push({ sessionNumber: this.sessionNumber, roundNumber: this.roundNumber, results });

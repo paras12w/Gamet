@@ -1199,6 +1199,17 @@ export class GameEngine {
     }));
   }
 
+  /** Keeps only the round's top gainer(s) (by pctChange - ties included) plus
+   * the viewer's own entry, if any. Round-by-round growth used to be fully
+   * visible to everyone, which made it easy to track exactly who was
+   * expanding; now only the current front-runner is public, so quietly
+   * building up for a sneak attack is actually viable. */
+  private redactRoundResults(results: RoundResultEntry[], forGuildId: string | null): RoundResultEntry[] {
+    let topPct = -Infinity;
+    for (const r of results) if (r.pctChange !== null && r.pctChange > topPct) topPct = r.pctChange;
+    return results.filter((r) => r.guildId === forGuildId || (r.pctChange !== null && r.pctChange === topPct));
+  }
+
   getSnapshot(forGuildId: string | null = null): GameStateSnapshot {
     return {
       gridSize: CONFIG.GRID_SIZE,
@@ -1211,8 +1222,8 @@ export class GameEngine {
       roundStartedAt: this.roundStartedAt,
       roundEndsAt: this.roundEndsAt,
       marketOpen: isMarketOpen(),
-      lastRoundResults: this.lastRoundResults,
-      roundHistory: this.roundHistory,
+      lastRoundResults: this.redactRoundResults(this.lastRoundResults, forGuildId),
+      roundHistory: this.roundHistory.map((h) => ({ ...h, results: this.redactRoundResults(h.results, forGuildId) })),
       lastSessionWinner: this.lastSessionWinner,
       hallOfFame: this.getHallOfFame(),
       wagers: this.wagers,

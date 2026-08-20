@@ -1030,6 +1030,13 @@ h1, h2, h3 {
   border-bottom: 1px solid var(--border-dim);
 }
 
+.round-log__disclaimer {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-style: italic;
+  margin: 0 14px 8px;
+}
+
 .wager-status {
   font-size: 0.72rem;
   color: var(--gold);

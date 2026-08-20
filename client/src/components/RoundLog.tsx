@@ -85,6 +85,9 @@ export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {
       <div className="panel__header">
         <h2>Battle History</h2>
       </div>
+      <p className="round-log__disclaimer">
+        Only the round's top gainer is public - everyone else's moves stay quiet, so a sneak attack is always on the table.
+      </p>
       <div className="round-log round-log--scroll">
         {rounds.length === 0 && <div className="empty-hint">Results appear once the first round resolves.</div>}
         {rounds.map((round) => (
@@ -92,6 +95,7 @@ export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {
             <div className="round-log__group-header">
               Round {round.roundNumber} <span>· Session {round.sessionNumber}</span>
             </div>
+            {round.results.length === 0 && <div className="empty-hint">No public gains this round.</div>}
             {round.results.map((r, i) => {
               const up = r.pctChange !== null && r.pctChange >= 0;
               const flavor = flavorFor(round, r);

@@ -114,6 +114,13 @@ export interface PublicGuild {
   tagline: string;
   leaderless: boolean;
   achievements: string[];
+  sectorWins: Record<string, number>;
+}
+
+export interface SectorContract {
+  sectorKey: string;
+  target: number;
+  reward: number;
 }
 
 export interface GameStateSnapshot {
@@ -133,6 +140,8 @@ export interface GameStateSnapshot {
   hallOfFame: HallOfFameEntry[];
   wagers: Wager[];
   recentBattleCells: string[];
+  sectorCouncil: Record<string, string | null>;
+  activeContract: SectorContract | null;
 }
 
 export interface Identity {

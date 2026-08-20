@@ -15,16 +15,22 @@ import {
 } from "../api";
 import { FlagBadge } from "./icons";
 import { ACHIEVEMENT_INFO } from "../lib/achievements";
+import { SECTOR_INFO } from "../lib/sectors";
 import { soundEngine } from "../lib/sound";
 import { AllianceChatThread } from "./AllianceChatThread";
 import { formatCoins } from "../lib/coins";
 import { LiveTicker } from "./GuildBar";
 
-type Tab = "overview" | "members" | "diplomacy" | "wagers" | "chat";
+type Tab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "chat";
 
 // Mirrors server/src/config.ts CONFIG.SCOUT_COST default - same pattern as
 // GuildBar's MAX_PENDING_TILES constant.
 const SCOUT_COST = 5;
+
+// The three sectors with an actual mechanical bonus - mirrors server/src/
+// gameEngine.ts KINGDOM_SECTORS. Consumer/Industrial/Index are flavor-only.
+const KINGDOM_SECTORS = ["tech", "finance", "energy"] as const;
+const SPECIALIST_THRESHOLD = 5;
 
 function formatFoundedAgo(createdAt: number): string {
   const ms = Date.now() - createdAt;
@@ -201,6 +207,9 @@ export function GuildMenu({
           </button>
           <button type="button" className={tab === "wagers" ? "active" : ""} onClick={() => setTab("wagers")}>
             Wagers{incomingWagers.length > 0 ? ` (${incomingWagers.length})` : ""}
+          </button>
+          <button type="button" className={tab === "sectors" ? "active" : ""} onClick={() => setTab("sectors")}>
+            Kingdoms
           </button>
           <button type="button" className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
             Chat
@@ -584,6 +593,65 @@ export function GuildMenu({
               )}
 
               {diploError && <div className="form-error">{diploError}</div>}
+            </div>
+          )}
+
+          {tab === "sectors" && (
+            <div className="sectors-tab">
+              {snapshot.activeContract && (
+                <div className="sector-contract">
+                  <span className="sector-contract__icon">{SECTOR_INFO[snapshot.activeContract.sectorKey]?.icon ?? "📜"}</span>
+                  <div>
+                    <h4>Realm Contract</h4>
+                    <p>
+                      First guild to win <strong>{snapshot.activeContract.target}</strong>{" "}
+                      {SECTOR_INFO[snapshot.activeContract.sectorKey]?.name ?? snapshot.activeContract.sectorKey} calls claims{" "}
+                      <strong>{formatCoins(snapshot.activeContract.reward)}</strong>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {KINGDOM_SECTORS.map((key) => {
+                const info = SECTOR_INFO[key];
+                const wins = guild.sectorWins[key] ?? 0;
+                const isSpecialist = wins >= SPECIALIST_THRESHOLD;
+                const seatHolderId = snapshot.sectorCouncil[key];
+                const seatHolder = seatHolderId ? snapshot.guilds.find((g) => g.id === seatHolderId) : null;
+                const youHoldSeat = seatHolderId === guild.id;
+                return (
+                  <div key={key} className="sector-card">
+                    <div className="sector-card__header">
+                      <span className="sector-card__icon">{info.icon}</span>
+                      <h4>{info.name}</h4>
+                      {youHoldSeat && <span className="sector-card__seat-badge">👑 You lead this kingdom</span>}
+                    </div>
+                    <p className="sector-card__wins">
+                      {wins} win{wins === 1 ? "" : "s"} {isSpecialist && <span className="sector-card__specialist">★ Specialist</span>}
+                    </p>
+                    <div className="sector-card__bar">
+                      <div className="sector-card__bar-fill" style={{ width: `${Math.min(100, (wins / SPECIALIST_THRESHOLD) * 100)}%` }} />
+                    </div>
+                    <p className="sector-card__hint">
+                      {isSpecialist
+                        ? key === "tech"
+                          ? "Specialist bonus active: +1 extra tile on every Tech win."
+                          : "Specialist bonus active: +2 extra silver on every win here."
+                        : `${SPECIALIST_THRESHOLD - wins} more win${SPECIALIST_THRESHOLD - wins === 1 ? "" : "s"} to unlock a permanent bonus.`}
+                    </p>
+                    <p className="sector-card__council">
+                      {seatHolder ? (
+                        <>
+                          👑 Council seat: <strong>{seatHolder.name}</strong> ({seatHolder.sectorWins[key] ?? 0} wins) — scouts{" "}
+                          {SCOUT_COST - 2} 🪙 instead of {SCOUT_COST} 🪙
+                        </>
+                      ) : (
+                        "👑 Council seat: vacant — be the first to win here"
+                      )}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           )}
 

@@ -1031,6 +1031,105 @@ h1, h2, h3 {
   width: 110px;
 }
 
+.sectors-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sector-contract {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: rgba(212, 168, 67, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.sector-contract__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.sector-contract h4 {
+  margin: 0 0 4px;
+  color: var(--gold-bright);
+  font-size: 0.85rem;
+}
+
+.sector-contract p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.sector-card {
+  border: 1px solid var(--border-dim);
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.sector-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sector-card__icon {
+  font-size: 1.3rem;
+}
+
+.sector-card__header h4 {
+  margin: 0;
+  color: var(--gold-bright);
+  font-size: 0.9rem;
+}
+
+.sector-card__seat-badge {
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: var(--gold-bright);
+  background: rgba(212, 168, 67, 0.15);
+  border: 1px solid var(--gold);
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+
+.sector-card__wins {
+  margin: 8px 0 4px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.sector-card__specialist {
+  color: var(--gold-bright);
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.sector-card__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.sector-card__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold-bright));
+}
+
+.sector-card__hint,
+.sector-card__council {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
 .guild-menu__chat {
   flex: 1;
   display: flex;

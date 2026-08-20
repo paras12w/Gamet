@@ -121,8 +121,9 @@ export interface Guild {
   lastCallRound: number; // round number of the leader's last successful proposeTicker
   leaderless: boolean; // true once the leader's gone LEADER_INACTIVITY_ROUNDS without a call
   achievements: Set<AchievementKey>; // one-time unlocks; persists across sessions
-  sectorWins: Record<string, number>; // wins per sector key, tracks progress toward sector_specialist; resets on server restart
+  sectorWins: Record<string, number>; // wins per sector key, drives sector_specialist, specialization perks, and the council seat; resets on server restart
   currentStreak: number; // consecutive rounds this guild has won (any outcome); resets on server restart
+  recentWinSectors: string[]; // last 3 sectors won in, oldest first; drives the diversification bonus; resets on server restart
 }
 
 export interface PublicGuild {
@@ -154,6 +155,7 @@ export interface PublicGuild {
   tagline: string;
   leaderless: boolean;
   achievements: AchievementKey[];
+  sectorWins: Record<string, number>;
 }
 
 export interface Wager {
@@ -163,6 +165,12 @@ export interface Wager {
   amount: number; // in-game gold (tokens) staked by each side - not real currency
   status: "pending" | "accepted";
   settleRound: number | null; // the round number this wager resolves at, set on accept
+}
+
+export interface SectorContract {
+  sectorKey: string;
+  target: number;
+  reward: number;
 }
 
 export interface GameStateSnapshot {
@@ -182,4 +190,6 @@ export interface GameStateSnapshot {
   hallOfFame: HallOfFameEntry[];
   wagers: Wager[];
   recentBattleCells: CellKey[];
+  sectorCouncil: Record<string, string | null>; // sectorKey -> id of the guild currently leading it, if any
+  activeContract: SectorContract | null;
 }

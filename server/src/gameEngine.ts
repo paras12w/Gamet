@@ -13,7 +13,7 @@ import {
   scatterNeutralPositions,
 } from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
-import { SECTOR_SILVER_BONUS, SECTOR_TILE_BONUS, sectorForTicker } from "./sectors.js";
+import { SECTOR_SILVER_BONUS, SECTOR_TILE_BONUS, SECTORS, sectorForTicker } from "./sectors.js";
 import { ACHIEVEMENTS, type AchievementKey } from "./achievements.js";
 import {
   getTopGuildsByTokens,
@@ -42,6 +42,12 @@ import type {
   RoundResultEntry,
   Wager,
 } from "./types.js";
+
+// The three sectors with an actual per-call bonus (see sectors.ts) - the
+// ones specialization, the council seat, and rotating contracts all revolve
+// around. Index/Consumer/Industrial tickers still classify for display but
+// don't feed these deeper systems.
+const KINGDOM_SECTORS = ["tech", "finance", "energy"] as const;
 
 // Relative weights for neutral castle kinds: the classics are common, the
 // sector structures and Market Exchange show up less often, and the most
@@ -96,6 +102,8 @@ export class GameEngine {
   lastSessionWinner: { guildId: string; guildName: string } | null = null;
   wagers: Wager[] = [];
   recentBattleCells: CellKey[] = [];
+  private sectorCouncil: Record<string, string | null> = {};
+  private activeContract: { sectorKey: string; target: number; reward: number; progress: Record<string, number> } | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private chats = new Map<string, ChatMessage[]>();
   onUpdate: (() => void) | null = null;
@@ -104,7 +112,13 @@ export class GameEngine {
   constructor() {
     this.initGrid();
     this.restoreGuildsFromDb();
+    this.rollNewContract();
     this.scheduleNextRound();
+  }
+
+  private rollNewContract(): void {
+    const sectorKey = KINGDOM_SECTORS[Math.floor(Math.random() * KINGDOM_SECTORS.length)];
+    this.activeContract = { sectorKey, target: CONFIG.CONTRACT_TARGET, reward: CONFIG.CONTRACT_REWARD, progress: {} };
   }
 
   // ---------- setup ----------
@@ -166,6 +180,7 @@ export class GameEngine {
         achievements: new Set(JSON.parse(row.achievements) as AchievementKey[]),
         sectorWins: {},
         currentStreak: 0,
+        recentWinSectors: [],
       };
       this.guilds.set(guild.id, guild);
       this.placeHq(guild);
@@ -248,6 +263,7 @@ export class GameEngine {
       achievements: new Set(),
       sectorWins: {},
       currentStreak: 0,
+      recentWinSectors: [],
     };
     this.guilds.set(guild.id, guild);
     this.placeHq(guild);
@@ -470,8 +486,9 @@ export class GameEngine {
     if (target.id === guild.id) return { ok: false, error: "Cannot scout your own guild" };
     if (!target.proposal) return { ok: false, error: "That guild hasn't called a ticker yet this round" };
     if (target.scoutedBy.has(guild.id)) return { ok: false, error: "You've already scouted that guild this round" };
-    if (guild.tokens < CONFIG.SCOUT_COST) return { ok: false, error: "Not enough silver to scout" };
-    guild.tokens -= CONFIG.SCOUT_COST;
+    const scoutCost = Math.max(1, CONFIG.SCOUT_COST - (this.holdsAnyCouncilSeat(guild.id) ? CONFIG.COUNCIL_SCOUT_DISCOUNT : 0));
+    if (guild.tokens < scoutCost) return { ok: false, error: "Not enough silver to scout" };
+    guild.tokens -= scoutCost;
     updateGuildTokens(guild.id, guild.tokens);
     target.scoutedBy.add(guild.id);
     this.postSystemMessage(
@@ -604,6 +621,10 @@ export class GameEngine {
   private applySectorBonus(guild: Guild): { tileBonus: number; silverBonus: number; sectorKey: string | undefined } {
     const sector = guild.proposal ? sectorForTicker(guild.proposal.ticker) : null;
     if (!sector) return { tileBonus: 0, silverBonus: 0, sectorKey: undefined };
+
+    guild.sectorWins[sector.key] = (guild.sectorWins[sector.key] ?? 0) + 1;
+    const wins = guild.sectorWins[sector.key];
+
     let tileBonus = sector.key === "tech" ? SECTOR_TILE_BONUS : 0;
     let silverBonus = SECTOR_SILVER_BONUS[sector.key] ?? 0;
     // Sector structures amplify their own sector's bonus for whoever holds
@@ -611,12 +632,44 @@ export class GameEngine {
     // Energy silver bonus, giving a concrete reason to fight over them.
     if (sector.key === "tech" && tileBonus > 0 && this.ownsCastleKind(guild, "foundry")) tileBonus *= 2;
     if (sector.key === "energy" && silverBonus > 0 && this.ownsCastleKind(guild, "refinery")) silverBonus *= 2;
+
+    // Specialization: enough proven wins in a kingdom sector earns a
+    // permanent add-on to that sector's own bonus, independent of any
+    // structure - a standing reward for committing to a sector over time.
+    if ((KINGDOM_SECTORS as readonly string[]).includes(sector.key) && wins >= CONFIG.SECTOR_SPECIALIST_THRESHOLD) {
+      if (sector.key === "tech") tileBonus += CONFIG.SPECIALIST_TILE_BONUS;
+      else silverBonus += CONFIG.SPECIALIST_SILVER_BONUS;
+    }
+
     if (silverBonus > 0) {
       guild.tokens += silverBonus;
       updateGuildTokens(guild.id, guild.tokens);
     }
-    guild.sectorWins[sector.key] = (guild.sectorWins[sector.key] ?? 0) + 1;
-    if (guild.sectorWins[sector.key] >= 3) this.awardAchievement(guild, "sector_specialist");
+    if (wins >= 3) this.awardAchievement(guild, "sector_specialist");
+
+    // Diversification: 3 different kingdom sectors across your last 3 wins.
+    guild.recentWinSectors.push(sector.key);
+    if (guild.recentWinSectors.length > 3) guild.recentWinSectors.shift();
+    if (guild.recentWinSectors.length === 3 && new Set(guild.recentWinSectors).size === 3) {
+      guild.tokens += CONFIG.DIVERSIFICATION_BONUS;
+      updateGuildTokens(guild.id, guild.tokens);
+      this.postSystemMessage(guild.id, `🎯 Diversified portfolio — 3 different kingdoms in our last 3 calls, +${CONFIG.DIVERSIFICATION_BONUS} silver!`);
+      guild.recentWinSectors = [];
+    }
+
+    // Rotating sector contract: first guild to hit the target claims it.
+    if (this.activeContract && this.activeContract.sectorKey === sector.key) {
+      const contract = this.activeContract;
+      contract.progress[guild.id] = (contract.progress[guild.id] ?? 0) + 1;
+      if (contract.progress[guild.id] >= contract.target) {
+        guild.tokens += contract.reward;
+        updateGuildTokens(guild.id, guild.tokens);
+        const sectorName = SECTORS[sector.key]?.name ?? sector.key;
+        this.postSystemMessage(guild.id, `📜 Contract fulfilled — ${contract.target} ${sectorName} calls won, +${contract.reward} silver!`);
+        this.rollNewContract();
+      }
+    }
+
     return { tileBonus, silverBonus, sectorKey: sector.key };
   }
 
@@ -847,6 +900,7 @@ export class GameEngine {
     this.awardRoundLeaderSilver();
     this.checkLeaderInactivity();
     this.trackWinStreaks(results);
+    this.updateSectorCouncil();
 
     for (const guild of this.livingGuilds()) {
       guild.proposal = null;
@@ -943,6 +997,27 @@ export class GameEngine {
         guild.currentStreak = 0;
       }
     }
+  }
+
+  /** Recomputes which guild currently leads each kingdom sector's win
+   * count - the Sector Council Seat, which scouts more cheaply while held. */
+  private updateSectorCouncil(): void {
+    for (const key of KINGDOM_SECTORS) {
+      let leader: Guild | null = null;
+      let best = 0;
+      for (const guild of this.livingGuilds()) {
+        const wins = guild.sectorWins[key] ?? 0;
+        if (wins > best) {
+          best = wins;
+          leader = guild;
+        }
+      }
+      this.sectorCouncil[key] = leader ? leader.id : null;
+    }
+  }
+
+  private holdsAnyCouncilSeat(guildId: string): boolean {
+    return Object.values(this.sectorCouncil).includes(guildId);
   }
 
   /** Any current member of a leaderless guild can claim leadership,
@@ -1108,6 +1183,7 @@ export class GameEngine {
       tagline: g.tagline,
       leaderless: g.leaderless,
       achievements: [...g.achievements],
+      sectorWins: g.sectorWins,
     };
   }
 
@@ -1141,6 +1217,10 @@ export class GameEngine {
       hallOfFame: this.getHallOfFame(),
       wagers: this.wagers,
       recentBattleCells: this.recentBattleCells,
+      sectorCouncil: this.sectorCouncil,
+      activeContract: this.activeContract
+        ? { sectorKey: this.activeContract.sectorKey, target: this.activeContract.target, reward: this.activeContract.reward }
+        : null,
     };
   }
 

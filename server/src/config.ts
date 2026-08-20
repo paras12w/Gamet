@@ -98,6 +98,26 @@ export const CONFIG = {
   // Riverside fertility: bonus silver on the buff tick for a held resource
   // castle that borders a river tile.
   RIVERSIDE_SILVER_BONUS: Number(process.env.RIVERSIDE_SILVER_BONUS ?? 2),
+
+  // Sector specialization: once a guild has this many wins in one of the
+  // three kingdom sectors, every future win there gets a permanent bonus
+  // on top of the base sector bonus (and any structure doubling).
+  SECTOR_SPECIALIST_THRESHOLD: Number(process.env.SECTOR_SPECIALIST_THRESHOLD ?? 5),
+  SPECIALIST_TILE_BONUS: Number(process.env.SPECIALIST_TILE_BONUS ?? 1),
+  SPECIALIST_SILVER_BONUS: Number(process.env.SPECIALIST_SILVER_BONUS ?? 2),
+
+  // Sector Council Seat: whichever guild currently leads a kingdom sector's
+  // win count scouts more cheaply while they hold it.
+  COUNCIL_SCOUT_DISCOUNT: Number(process.env.COUNCIL_SCOUT_DISCOUNT ?? 2),
+
+  // Rotating sector contract: first guild to win this many calls in the
+  // contract's sector claims the reward, then a new contract rolls.
+  CONTRACT_TARGET: Number(process.env.CONTRACT_TARGET ?? 3),
+  CONTRACT_REWARD: Number(process.env.CONTRACT_REWARD ?? 12),
+
+  // Diversification bonus: reward for a guild whose last 3 winning calls
+  // hit 3 different kingdom sectors.
+  DIVERSIFICATION_BONUS: Number(process.env.DIVERSIFICATION_BONUS ?? 5),
 };
 
 // Reserved chat channel id for the realm-wide chat, open to everyone

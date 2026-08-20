@@ -93,6 +93,7 @@ export function GuildMenu({
   const [taglineDraft, setTaglineDraft] = useState<string | null>(null);
   const [taglineSaving, setTaglineSaving] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [marketBusy, setMarketBusy] = useState<string | null>(null);
   const [marketError, setMarketError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -380,9 +381,25 @@ export function GuildMenu({
 
               {!guild.alive && <div className="badge badge--closed">This guild has been absorbed by a rival.</div>}
 
-              <button type="button" className="link-button" onClick={onLeave}>
-                Abandon this banner
-              </button>
+              {confirmLeave ? (
+                <div className="guild-menu__leave-confirm">
+                  <span>
+                    {isLeader
+                      ? "Leaving as leader can cost you control of the guild until someone claims leadership — really abandon?"
+                      : "Really abandon this banner?"}
+                  </span>
+                  <button type="button" className="link-button link-button--danger" onClick={onLeave}>
+                    Yes, abandon
+                  </button>
+                  <button type="button" className="link-button" onClick={() => setConfirmLeave(false)}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="link-button" onClick={() => setConfirmLeave(true)}>
+                  Abandon this banner
+                </button>
+              )}
             </div>
           )}
 

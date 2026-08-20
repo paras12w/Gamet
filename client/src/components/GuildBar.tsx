@@ -18,7 +18,7 @@ export function GuildBar({
   snapshot: GameStateSnapshot;
   identity: Identity;
   placementMode: boolean;
-  onOpenMenu: () => void;
+  onOpenMenu: (tab?: "scouting") => void;
   onTogglePlacement: () => void;
 }) {
   const [ticker, setTicker] = useState("");
@@ -50,7 +50,7 @@ export function GuildBar({
 
   return (
     <div className="panel guild-bar">
-      <button type="button" className="guild-bar__header" onClick={onOpenMenu}>
+      <button type="button" className="guild-bar__header" onClick={() => onOpenMenu()}>
         <FlagBadge color={guild.color} decal={guild.flagDecal} size={26} />
         <span className="guild-bar__title">
           <span className="guild-bar__name">{guild.name}</span>
@@ -59,6 +59,10 @@ export function GuildBar({
           </span>
         </span>
         <span className="guild-bar__menu-hint">Guild Menu ▸</span>
+      </button>
+
+      <button type="button" className="guild-bar__scout-btn" onClick={() => onOpenMenu("scouting")}>
+        🔭 Scout rival guilds
       </button>
 
       <div className="tile-bank">

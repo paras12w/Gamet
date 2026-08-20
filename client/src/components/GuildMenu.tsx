@@ -21,7 +21,8 @@ import { AllianceChatThread } from "./AllianceChatThread";
 import { formatCoins } from "../lib/coins";
 import { LiveTicker } from "./GuildBar";
 
-type Tab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "chat";
+export type GuildMenuTab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "chat";
+type Tab = GuildMenuTab;
 
 // Mirrors server/src/config.ts CONFIG.SCOUT_COST / COUNCIL_SCOUT_DISCOUNT
 // defaults - same pattern as GuildBar's MAX_PENDING_TILES constant.
@@ -49,6 +50,7 @@ export function GuildMenu({
   identity,
   setIdentity,
   chatMessages,
+  initialTab,
   onClose,
   onLeave,
 }: {
@@ -56,10 +58,11 @@ export function GuildMenu({
   identity: Identity;
   setIdentity: (next: Identity) => void;
   chatMessages: ChatMessage[];
+  initialTab?: Tab;
   onClose: () => void;
   onLeave: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "overview");
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);

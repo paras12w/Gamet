@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GameStateSnapshot, ResourceKind } from "../types";
 import {
   BanditCampIcon,
@@ -92,34 +92,109 @@ export function GridView({
   placementMode: boolean;
   onPlaceTile: (x: number, y: number) => void;
 }) {
+  // Pan/zoom on the board itself, deliberately NOT the page - two-finger
+  // pinch, mouse/touch drag, and ctrl/cmd+scroll (trackpad pinch on
+  // desktop) all work directly via Pointer Events + a non-passive native
+  // wheel listener, with `touch-action: none` on the viewport so the
+  // browser never intercepts the gesture for its own page-level zoom
+  // (which is also hard-disabled at the viewport-meta level - see
+  // index.html - since WebKit can otherwise still zoom the whole page on
+  // a pinch regardless of touch-action).
   const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
   const viewportRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number; dragged: boolean } | null>(null);
+  const activePointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDist = useRef<number | null>(null);
+  const lastTap = useRef<{ x: number; y: number; at: number } | null>(null);
 
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 4;
-  const ZOOM_STEP = 0.5;
 
   function clampZoom(next: number): number {
     return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
   }
 
-  function zoomBy(delta: number) {
-    setZoom((z) => clampZoom(Math.round((z + delta) * 100) / 100));
+  /** Zoom to `nextZoom`, keeping whatever's under viewport-relative point
+   * (localX, localY) stationary on screen - so a pinch or scroll-zoom
+   * anchors to your fingers/cursor instead of always the top-left corner. */
+  function zoomAt(nextZoom: number, localX: number, localY: number) {
+    const el = viewportRef.current;
+    const prevZoom = zoomRef.current;
+    const clamped = clampZoom(nextZoom);
+    if (el && clamped !== prevZoom) {
+      const ratio = clamped / prevZoom;
+      el.scrollLeft = (el.scrollLeft + localX) * ratio - localX;
+      el.scrollTop = (el.scrollTop + localY) * ratio - localY;
+    }
+    zoomRef.current = clamped;
+    setZoom(clamped);
+  }
+
+  function resetZoom() {
+    zoomRef.current = 1;
+    setZoom(1);
+    const el = viewportRef.current;
+    if (el) {
+      el.scrollLeft = 0;
+      el.scrollTop = 0;
+    }
+  }
+
+  function dist(a: { x: number; y: number }, b: { x: number; y: number }): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (zoom <= 1 || e.button !== 0) return;
     const el = viewportRef.current;
     if (!el) return;
-    dragState.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, dragged: false };
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     el.setPointerCapture(e.pointerId);
+
+    if (activePointers.current.size === 2) {
+      dragState.current = null;
+      const pts = [...activePointers.current.values()];
+      pinchDist.current = dist(pts[0], pts[1]);
+      return;
+    }
+
+    if (activePointers.current.size === 1) {
+      // Double-tap/double-click anywhere on the board resets the view -
+      // the only "control" left now that zoom is gesture-driven.
+      const now = Date.now();
+      const last = lastTap.current;
+      if (last && now - last.at < 350 && Math.abs(e.clientX - last.x) < 24 && Math.abs(e.clientY - last.y) < 24) {
+        resetZoom();
+        lastTap.current = null;
+        return;
+      }
+      lastTap.current = { x: e.clientX, y: e.clientY, at: now };
+
+      if (zoomRef.current <= 1 || (e.pointerType === "mouse" && e.button !== 0)) return;
+      dragState.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, dragged: false };
+    }
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const drag = dragState.current;
     const el = viewportRef.current;
-    if (!drag || !el) return;
+    if (!el || !activePointers.current.has(e.pointerId)) return;
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.current.size === 2 && pinchDist.current) {
+      const pts = [...activePointers.current.values()];
+      const newDist = dist(pts[0], pts[1]);
+      const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+      const rect = el.getBoundingClientRect();
+      zoomAt(zoomRef.current * (newDist / pinchDist.current), mid.x - rect.left, mid.y - rect.top);
+      pinchDist.current = newDist;
+      return;
+    }
+
+    const drag = dragState.current;
+    if (!drag) return;
     const dx = e.clientX - drag.x;
     const dy = e.clientY - drag.y;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.dragged = true;
@@ -129,6 +204,8 @@ export function GridView({
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
     const el = viewportRef.current;
+    activePointers.current.delete(e.pointerId);
+    if (activePointers.current.size < 2) pinchDist.current = null;
     if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
     // Swallow the click that follows a real drag so a pan gesture never
     // accidentally places a tile or opens a keep popup.
@@ -139,11 +216,23 @@ export function GridView({
     dragState.current = null;
   }
 
-  function handleWheel(e: React.WheelEvent<HTMLDivElement>) {
-    if (!e.ctrlKey && !e.metaKey) return; // trackpad pinch / ctrl+wheel only - plain scroll still pans
-    e.preventDefault();
-    zoomBy(e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP);
-  }
+  // A native (non-passive) wheel listener - React's synthetic onWheel is
+  // passive by default, which silently no-ops preventDefault() and lets
+  // the browser's own page-zoom win on a ctrl/cmd+scroll or trackpad
+  // pinch. This is what actually keeps that gesture scoped to the board.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey && !e.metaKey) return; // plain scroll still just pans/scrolls normally
+      e.preventDefault();
+      const rect = el!.getBoundingClientRect();
+      const factor = Math.exp(-e.deltaY * 0.01);
+      zoomAt(zoomRef.current * factor, e.clientX - rect.left, e.clientY - rect.top);
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const guildsById = useMemo(() => new Map(snapshot.guilds.map((g) => [g.id, g])), [snapshot.guilds]);
@@ -189,17 +278,11 @@ export function GridView({
   return (
     <div className="grid-view-wrap" ref={wrapRef}>
       {placementMode && <div className="placement-hint">🎯 Choose an open field next to your territory to place a banked tile.</div>}
-      <div className="grid-zoom-controls">
-        <button type="button" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="Zoom out">
-          −
-        </button>
-        <button type="button" onClick={() => setZoom(1)} disabled={zoom === 1} aria-label="Reset zoom">
-          {Math.round(zoom * 100)}%
-        </button>
-        <button type="button" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="Zoom in">
-          +
-        </button>
-      </div>
+      {zoom > 1 && (
+        <div className="grid-zoom-hint" aria-hidden="true">
+          {Math.round(zoom * 100)}% · double-tap to reset
+        </div>
+      )}
       <div
         ref={viewportRef}
         className={`grid-zoom-viewport${zoom > 1 ? " grid-zoom-viewport--zoomed" : ""}`}
@@ -207,7 +290,6 @@ export function GridView({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        onWheel={handleWheel}
       >
       <div
         className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}${placementMode ? " grid-view--placing" : ""}`}

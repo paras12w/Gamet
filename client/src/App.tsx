@@ -11,7 +11,7 @@ import { TickerTape } from "./components/TickerTape";
 import { Timer } from "./components/Timer";
 import { GridView } from "./components/GridView";
 import { GuildBar } from "./components/GuildBar";
-import { GuildMenu } from "./components/GuildMenu";
+import { GuildMenu, type GuildMenuTab } from "./components/GuildMenu";
 import { Leaderboard } from "./components/Leaderboard";
 import { RoundLog } from "./components/RoundLog";
 import { ToastStack } from "./components/ToastStack";
@@ -39,6 +39,7 @@ export default function App() {
   const { muted, toggleMuted, play } = useSound();
   const { toasts, dismiss } = useToasts(snapshot, identity.guildId, play, chatMessages);
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
+  const [guildMenuTab, setGuildMenuTab] = useState<GuildMenuTab>("overview");
   const [mobileTab, setMobileTab] = useState<MobileTab>("board");
   const [placementMode, setPlacementMode] = useState(false);
   const lastChatCount = useRef(0);
@@ -53,6 +54,11 @@ export default function App() {
     } finally {
       setPlacementMode(false);
     }
+  }
+
+  function openGuildMenu(tab?: GuildMenuTab) {
+    setGuildMenuTab(tab ?? "overview");
+    setGuildMenuOpen(true);
   }
 
   function handleTogglePlacement() {
@@ -141,7 +147,7 @@ export default function App() {
                     snapshot={snapshot}
                     identity={identity}
                     placementMode={placementMode}
-                    onOpenMenu={() => setGuildMenuOpen(true)}
+                    onOpenMenu={openGuildMenu}
                     onTogglePlacement={handleTogglePlacement}
                   />
                   <MiniMap snapshot={snapshot} myGuildId={identity.guildId} />
@@ -191,6 +197,7 @@ export default function App() {
             identity={identity}
             setIdentity={setIdentity}
             chatMessages={chatMessages}
+            initialTab={guildMenuTab}
             onClose={() => setGuildMenuOpen(false)}
             onLeave={() => {
               setGuildMenuOpen(false);

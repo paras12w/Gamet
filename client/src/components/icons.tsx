@@ -14,21 +14,32 @@ const ROAD_COLOR = "#7a6446";
  * icon instead of plain open water. */
 export function RiverTile({ seed = 0, vertical = false, crossing = false }: { seed?: number; vertical?: boolean; crossing?: boolean }) {
   const offset = seed % 5;
-  const wave1 = `M${8 + offset} 0 Q${6 + offset} 6 ${8 + offset} 12 T${8 + offset} 24`;
-  const wave2 = `M${16 - offset} 0 Q${18 - offset} 6 ${16 - offset} 12 T${16 - offset} 24`;
+  const amp = 3.2; // curve amplitude - a visibly wavy line, not a near-straight one
+  // Each M..Q..T..T path is a full 3-hump sine-like ripple across the tile
+  // (the T commands reflect the previous control point automatically), at
+  // a fixed perpendicular position that only shifts with `offset` for
+  // per-tile variety.
+  function hWave(y: number): string {
+    return `M0 ${y} Q4 ${y - amp} 8 ${y} T16 ${y} T24 ${y}`;
+  }
+  function vWave(x: number): string {
+    return `M${x} 0 Q${x - amp} 4 ${x} 8 T${x} 16 T${x} 24`;
+  }
   return (
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
       <rect width="24" height="24" fill="#2c5270" />
       <rect width="24" height="24" fill="#1f3f58" opacity="0.35" />
       {vertical ? (
         <>
-          <path d={wave1} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.6" />
-          <path d={wave2} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.5" />
+          <path d={vWave(6 + offset)} fill="none" stroke="#4f80a3" strokeWidth="1.1" opacity="0.65" />
+          <path d={vWave(13 - offset * 0.6)} fill="none" stroke="#5f9dc4" strokeWidth="0.8" opacity="0.5" />
+          <path d={vWave(19 + offset * 0.4)} fill="none" stroke="#4f80a3" strokeWidth="0.9" opacity="0.45" />
         </>
       ) : (
         <>
-          <path d={`M0 ${8 + offset} Q6 ${6 + offset} 12 ${8 + offset} T24 ${8 + offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.6" />
-          <path d={`M0 ${16 - offset} Q6 ${18 - offset} 12 ${16 - offset} T24 ${16 - offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.5" />
+          <path d={hWave(6 + offset)} fill="none" stroke="#4f80a3" strokeWidth="1.1" opacity="0.65" />
+          <path d={hWave(13 - offset * 0.6)} fill="none" stroke="#5f9dc4" strokeWidth="0.8" opacity="0.5" />
+          <path d={hWave(19 + offset * 0.4)} fill="none" stroke="#4f80a3" strokeWidth="0.9" opacity="0.45" />
         </>
       )}
       {crossing && (
@@ -370,41 +381,29 @@ export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: s
   );
 }
 
-const ROAD_EDGE = {
-  N: { x: 12, y: 0 },
-  S: { x: 12, y: 24 },
-  E: { x: 24, y: 12 },
-  W: { x: 0, y: 12 },
-} as const;
-
-const ROAD_OPPOSITE: Record<string, string> = { N: "S", S: "N", E: "W", W: "E" };
-
-/** Auto-connecting dirt path: straight segments, a smooth curve on a turn,
- * a hub blob on junctions, and a small dot for an isolated field. */
+/** Auto-connecting dirt path, full tile-width on every connected side (not
+ * a thin center line) - each active direction fills that whole half of the
+ * tile edge-to-edge, so a straight stretch or a turn reads as a solid worn
+ * path rather than a stripe, and only an isolated field (no connections)
+ * gets a small dot instead of a full fill. */
 export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w: boolean }) {
-  const active = (["N", "S", "E", "W"] as const).filter((d) => ({ N: n, S: s, E: e, W: w })[d]);
+  const active = n || s || e || w;
 
-  if (active.length === 0) {
+  if (!active) {
     return (
       <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-        <circle cx="12" cy="12" r="2.4" fill={ROAD_COLOR} opacity="0.8" />
+        <circle cx="12" cy="12" r="3" fill={ROAD_COLOR} opacity="0.8" />
       </svg>
     );
   }
 
-  let d: string;
-  if (active.length === 2 && ROAD_OPPOSITE[active[0]] !== active[1]) {
-    const [a, b] = active;
-    d = `M ${ROAD_EDGE[a].x} ${ROAD_EDGE[a].y} Q 12 12 ${ROAD_EDGE[b].x} ${ROAD_EDGE[b].y}`;
-  } else {
-    d = active.map((dir) => `M 12 12 L ${ROAD_EDGE[dir].x} ${ROAD_EDGE[dir].y}`).join(" ");
-  }
-
   return (
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-      <path d={d} stroke="#000" strokeOpacity="0.22" strokeWidth="6.4" strokeLinecap="round" fill="none" />
-      <path d={d} stroke={ROAD_COLOR} strokeWidth="5" strokeLinecap="round" fill="none" />
-      {active.length >= 3 && <circle cx="12" cy="12" r="3" fill={ROAD_COLOR} />}
+      {n && <rect x="0" y="0" width="24" height="13" fill={ROAD_COLOR} />}
+      {s && <rect x="0" y="11" width="24" height="13" fill={ROAD_COLOR} />}
+      {e && <rect x="11" y="0" width="13" height="24" fill={ROAD_COLOR} />}
+      {w && <rect x="0" y="0" width="13" height="24" fill={ROAD_COLOR} />}
+      <rect x="7" y="7" width="10" height="10" fill={ROAD_COLOR} />
     </svg>
   );
 }

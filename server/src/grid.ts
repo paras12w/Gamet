@@ -97,10 +97,15 @@ export interface RiverCell {
 
 /** Carves `count` winding, fully continuous rivers across the map (roughly
  * edge to edge), each a random walk biased toward one direction with
- * perpendicular jitter. About one cell in six along the path is marked as
- * a bridge crossing instead of leaving a plain gap - the river never
- * breaks on its own, but a guild can pay a toll at a crossing to claim it
- * (see BRIDGE_TOLL_SILVER / placeTile). */
+ * perpendicular jitter. Every consecutive pair of cells in the walk is
+ * orthogonally adjacent (shares a full edge, never just a corner) - the
+ * same adjacency rule tile placement itself uses - by treating the
+ * main-axis advance and the perpendicular jitter as two separate steps
+ * instead of combining both coordinate changes into one diagonal jump.
+ * About one cell in six along the path is marked as a bridge crossing
+ * instead of leaving a plain gap - the river never breaks on its own, but
+ * a guild can pay a toll at a crossing to claim it (see BRIDGE_TOLL_SILVER
+ * / placeTile). */
 export function generateRivers(count: number): Map<CellKey, RiverCell> {
   const size = CONFIG.GRID_SIZE;
   const river = new Map<CellKey, RiverCell>();
@@ -108,26 +113,36 @@ export function generateRivers(count: number): Map<CellKey, RiverCell> {
     const flowsAlongX = Math.random() < 0.5;
     let x = flowsAlongX ? 0 : Math.floor(Math.random() * size);
     let y = flowsAlongX ? Math.floor(Math.random() * size) : 0;
-    let step = 0;
+    const path: CellKey[] = [];
     while (inBounds(x, y)) {
-      const crossing = step % 6 === 5;
-      river.set(cellKey(x, y), { flowsAlongX, crossing });
-      // occasionally widen the river by a cell for visual variety
-      if (!crossing && Math.random() < 0.3) {
-        const wx = flowsAlongX ? x : x + (Math.random() < 0.5 ? 1 : -1);
-        const wy = flowsAlongX ? y + (Math.random() < 0.5 ? 1 : -1) : y;
-        const wKey = cellKey(wx, wy);
-        if (inBounds(wx, wy) && !river.has(wKey)) river.set(wKey, { flowsAlongX, crossing: false });
-      }
+      path.push(cellKey(x, y));
+      // Step 1: advance one cell along the primary axis - always orthogonal.
       if (flowsAlongX) x += 1;
       else y += 1;
-      // perpendicular jitter for a winding path
+      if (!inBounds(x, y)) break;
+      // Step 2 (kept separate from step 1, never combined): occasionally
+      // jitter one cell perpendicular, but push the post-step-1 cell first
+      // so the jittered cell stays only one orthogonal hop from its
+      // immediate predecessor in `path`.
       if (Math.random() < 0.55) {
+        path.push(cellKey(x, y));
         if (flowsAlongX) y += Math.random() < 0.5 ? 1 : -1;
         else x += Math.random() < 0.5 ? 1 : -1;
       }
-      step++;
     }
+    path.forEach((key, idx) => {
+      const crossing = idx % 6 === 5;
+      if (!river.has(key) || crossing) river.set(key, { flowsAlongX, crossing });
+      // occasionally widen the river by a cell for visual variety - stays
+      // orthogonally adjacent to its own parent path cell.
+      if (!crossing && Math.random() < 0.3) {
+        const { x: px, y: py } = parseKey(key);
+        const wx = flowsAlongX ? px : px + (Math.random() < 0.5 ? 1 : -1);
+        const wy = flowsAlongX ? py + (Math.random() < 0.5 ? 1 : -1) : py;
+        const wKey = cellKey(wx, wy);
+        if (inBounds(wx, wy) && !river.has(wKey)) river.set(wKey, { flowsAlongX, crossing: false });
+      }
+    });
   }
   return river;
 }

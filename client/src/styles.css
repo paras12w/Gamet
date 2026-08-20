@@ -224,26 +224,19 @@ h1, h2, h3 {
   position: relative;
 }
 
-.grid-zoom-controls {
+.grid-zoom-hint {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 20;
-  display: flex;
-  gap: 2px;
   background-color: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 3px;
+  padding: 4px 10px;
+  font-size: 0.68rem;
+  color: var(--text-dim);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
-}
-
-.grid-zoom-controls button {
-  min-width: 34px;
-  padding: 5px 8px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  line-height: 1;
+  pointer-events: none;
 }
 
 .grid-zoom-viewport {
@@ -251,7 +244,11 @@ h1, h2, h3 {
   aspect-ratio: 1;
   overflow: auto;
   border-radius: 2px;
-  touch-action: pan-x pan-y;
+  /* Pinch/pan on the board is handled entirely ourselves via Pointer
+     Events (see GridView.tsx) - `touch-action: none` stops the browser
+     from also trying to scroll/zoom this element on touch, which is what
+     let a pinch here leak into a page-level zoom before. */
+  touch-action: none;
 }
 
 .grid-zoom-viewport--zoomed {
@@ -274,7 +271,13 @@ h1, h2, h3 {
 
 .grid-view {
   display: grid;
-  gap: 1px;
+  /* No `gap` here on purpose: with 50 columns/rows, a real grid gap adds a
+     second, independently-rounded track dimension for the browser to
+     distribute pixels across on top of the (already imperfect) 1fr column
+     widths - on WebKit in particular this is what made cells look
+     inconsistently sized/"crooked". Cells sit flush and get their own
+     hairline via an inward `outline` below instead, which paints against
+     each cell's own actual rendered box rather than a shared gap track. */
   background: var(--grass-dark);
   border: 10px solid var(--border);
   outline: 3px solid var(--bg-deep);
@@ -290,6 +293,8 @@ h1, h2, h3 {
   background-image: radial-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px), radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 7px 7px, 5px 5px;
   background-position: 0 0, 2px 3px;
+  outline: 0.6px solid rgba(0, 0, 0, 0.22);
+  outline-offset: -0.6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -764,6 +769,21 @@ h1, h2, h3 {
   color: var(--text-dim);
   white-space: nowrap;
   font-family: "Cinzel", serif;
+}
+
+.guild-bar__scout-btn {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  font-size: 0.72rem;
+  font-family: "Cinzel", serif;
+  background: rgba(212, 168, 67, 0.1);
+  border: 1px solid var(--border);
+  color: var(--gold-bright);
+}
+
+.guild-bar__scout-btn:hover:not(:disabled) {
+  background: rgba(212, 168, 67, 0.2);
 }
 
 .tile-bank {

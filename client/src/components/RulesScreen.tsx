@@ -93,9 +93,10 @@ export function RulesScreen({ onContinue }: { onContinue: () => void }) {
             <div>
               <h3>Rivers and rarer finds</h3>
               <p>
-                Rivers cut across the realm and can't be settled, narrowing where you can expand - except at their fords.
-                🏴 Bandit Camps raid whoever's nearest until captured, 🗿 Ruins pay a one-time hoard of silver then crumble
-                to dirt, and a 🗼 Watchtower reveals any rival you're bordering for free, no scouting required.
+                Rivers cut across the realm and can't be settled - the only way across is a bridge crossing (marked with
+                planks), where a banked tile placement pays a silver toll to claim it. 🏴 Bandit Camps raid whoever's
+                nearest until captured, 🗿 Ruins pay a one-time hoard of silver then crumble to dirt, and a 🗼 Watchtower
+                reveals any rival you're bordering for free, no scouting required.
               </p>
             </div>
           </div>

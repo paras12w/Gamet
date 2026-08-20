@@ -11,6 +11,7 @@ import {
   neighborsOf,
   parseKey,
   scatterNeutralPositions,
+  type RiverCell,
 } from "./grid.js";
 import { isMarketOpen, priceEngine } from "./priceEngine.js";
 import { SECTOR_SILVER_BONUS, SECTOR_TILE_BONUS, SECTORS, sectorForTicker } from "./sectors.js";
@@ -104,7 +105,7 @@ export class GameEngine {
   private guilds = new Map<string, Guild>();
   private battles: Battle[] = [];
   private castles: CellKey[] = [];
-  private rivers = new Set<CellKey>();
+  private rivers = new Map<CellKey, RiverCell>();
   roundNumber = 1;
   sessionNumber = 1;
   roundStartedAt = Date.now();
@@ -154,7 +155,10 @@ export class GameEngine {
     for (const owned of guild.squares) {
       for (const n of neighborsOf(owned)) {
         const cell = this.grid.get(n);
-        if (cell && cell.owner === null && !cell.river) candidates.add(n);
+        // A river cell is only eligible at a bridge crossing - the toll is
+        // charged in placeTile, so this is a deliberate-placement-only
+        // option (the passive castle-buff auto-expansion never crosses).
+        if (cell && cell.owner === null && (!cell.river || cell.riverCrossing)) candidates.add(n);
       }
     }
     return [...candidates];
@@ -164,12 +168,21 @@ export class GameEngine {
    * so it always grabs a still-neutral castle over open land when one's in
    * reach, and otherwise leans toward whichever candidate cell borders a
    * living unallied guild (claiming it triggers a battle next round via
-   * detectNewBattles) rather than just growing into empty fields. */
+   * detectNewBattles) rather than just growing into empty fields. Bridge
+   * crossings the bot can't afford the toll for are dropped from
+   * consideration first, so a broke bot doesn't waste its whole turn on a
+   * placement that's just going to fail. */
   private pickBotPlacement(bot: Guild, candidates: CellKey[]): CellKey {
-    const castleCandidates = candidates.filter((key) => this.grid.get(key)?.type === "castle");
+    const affordable = candidates.filter((key) => {
+      const cell = this.grid.get(key);
+      return !cell?.riverCrossing || bot.tokens >= CONFIG.BRIDGE_TOLL_SILVER;
+    });
+    const pool = affordable.length > 0 ? affordable : candidates;
+
+    const castleCandidates = pool.filter((key) => this.grid.get(key)?.type === "castle");
     if (castleCandidates.length > 0) return castleCandidates[Math.floor(Math.random() * castleCandidates.length)];
 
-    const borderCandidates = candidates.filter((key) =>
+    const borderCandidates = pool.filter((key) =>
       neighborsOf(key).some((n) => {
         const owner = this.grid.get(n)?.owner;
         return !!owner && owner !== bot.id && !this.areAllied(bot.id, owner);
@@ -177,7 +190,7 @@ export class GameEngine {
     );
     if (borderCandidates.length > 0) return borderCandidates[Math.floor(Math.random() * borderCandidates.length)];
 
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   /** Drives every AI-controlled guild through one round's worth of
@@ -244,19 +257,22 @@ export class GameEngine {
   private initGrid(): void {
     this.grid.clear();
     this.rivers = generateRivers(CONFIG.RIVER_COUNT);
-    this.castles = scatterNeutralPositions(NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING, this.rivers);
+    this.castles = scatterNeutralPositions(NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING, new Set(this.rivers.keys()));
     const castleSet = new Set(this.castles);
     for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
       for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
         const key = cellKey(x, y);
         const isCastle = castleSet.has(key);
+        const riverCell = this.rivers.get(key);
         this.grid.set(key, {
           x,
           y,
           type: isCastle ? "castle" : "empty",
           owner: null,
           resourceKind: isCastle ? randomResourceKind() : undefined,
-          river: this.rivers.has(key) || undefined,
+          river: !!riverCell || undefined,
+          riverCrossing: riverCell?.crossing || undefined,
+          riverFlowsAlongX: riverCell?.flowsAlongX || undefined,
         });
       }
     }
@@ -826,9 +842,17 @@ export class GameEngine {
     const cell = this.grid.get(key);
     if (!cell) return { ok: false, error: "That field doesn't exist" };
     if (cell.owner !== null) return { ok: false, error: "That field is already claimed" };
-    if (cell.river) return { ok: false, error: "You can't settle a river" };
+    if (cell.river && !cell.riverCrossing) return { ok: false, error: "You can't settle a river" };
     const adjacent = neighborsOf(key).some((n) => this.grid.get(n)?.owner === guild.id);
     if (!adjacent) return { ok: false, error: "Must place next to your existing territory" };
+    if (cell.riverCrossing) {
+      if (guild.tokens < CONFIG.BRIDGE_TOLL_SILVER) {
+        return { ok: false, error: `Building a bridge here costs ${CONFIG.BRIDGE_TOLL_SILVER} silver - you don't have enough` };
+      }
+      guild.tokens -= CONFIG.BRIDGE_TOLL_SILVER;
+      updateGuildTokens(guild.id, guild.tokens);
+      this.postSystemMessage(guild.id, `🌉 Paid ${CONFIG.BRIDGE_TOLL_SILVER} silver to bridge the river.`);
+    }
     guild.squares.add(key);
     this.claimCell(guild, cell);
     guild.pendingTiles -= 1;

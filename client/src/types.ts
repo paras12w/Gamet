@@ -22,6 +22,8 @@ export interface Cell {
   owner: string | null;
   resourceKind?: ResourceKind;
   river?: boolean;
+  riverCrossing?: boolean;
+  riverFlowsAlongX?: boolean;
 }
 
 export interface Battle {

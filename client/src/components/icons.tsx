@@ -5,15 +5,49 @@
 const ROAD_COLOR = "#7a6446";
 
 /** A river tile: unclaimable water, rendered as the cell's own background
- * plus a couple of gentle wave strokes for texture. */
-export function RiverTile({ seed = 0 }: { seed?: number }) {
+ * plus a couple of gentle wave strokes for texture. The wave strokes run
+ * ALONG the river's actual flow direction (a river running top-to-bottom
+ * on screen gets vertical ripples, not horizontal ones crossing it) - the
+ * `vertical` flag is a direct passthrough of the cell's own
+ * `riverFlowsAlongX`, since the board renders x as the vertical axis. A
+ * `crossing` tile is a buyable bridge point, marked with a small plank
+ * icon instead of plain open water. */
+export function RiverTile({ seed = 0, vertical = false, crossing = false }: { seed?: number; vertical?: boolean; crossing?: boolean }) {
   const offset = seed % 5;
+  const wave1 = `M${8 + offset} 0 Q${6 + offset} 6 ${8 + offset} 12 T${8 + offset} 24`;
+  const wave2 = `M${16 - offset} 0 Q${18 - offset} 6 ${16 - offset} 12 T${16 - offset} 24`;
   return (
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
       <rect width="24" height="24" fill="#2c5270" />
       <rect width="24" height="24" fill="#1f3f58" opacity="0.35" />
-      <path d={`M0 ${8 + offset} Q6 ${6 + offset} 12 ${8 + offset} T24 ${8 + offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.6" />
-      <path d={`M0 ${16 - offset} Q6 ${18 - offset} 12 ${16 - offset} T24 ${16 - offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.5" />
+      {vertical ? (
+        <>
+          <path d={wave1} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.6" />
+          <path d={wave2} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.5" />
+        </>
+      ) : (
+        <>
+          <path d={`M0 ${8 + offset} Q6 ${6 + offset} 12 ${8 + offset} T24 ${8 + offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.6" />
+          <path d={`M0 ${16 - offset} Q6 ${18 - offset} 12 ${16 - offset} T24 ${16 - offset}`} fill="none" stroke="#4f80a3" strokeWidth="1" opacity="0.5" />
+        </>
+      )}
+      {crossing && (
+        <g>
+          {vertical ? (
+            <>
+              <rect x="2" y="9" width="20" height="6" rx="1" fill="#7a6446" stroke="#3a2814" strokeWidth="0.5" />
+              <line x1="2" y1="11" x2="22" y2="11" stroke="#5c4a2e" strokeWidth="0.6" />
+              <line x1="2" y1="13" x2="22" y2="13" stroke="#5c4a2e" strokeWidth="0.6" />
+            </>
+          ) : (
+            <>
+              <rect x="9" y="2" width="6" height="20" rx="1" fill="#7a6446" stroke="#3a2814" strokeWidth="0.5" />
+              <line x1="11" y1="2" x2="11" y2="22" stroke="#5c4a2e" strokeWidth="0.6" />
+              <line x1="13" y1="2" x2="13" y2="22" stroke="#5c4a2e" strokeWidth="0.6" />
+            </>
+          )}
+        </g>
+      )}
     </svg>
   );
 }
@@ -289,6 +323,20 @@ export function KnightIcon({ color, size = 18 }: { color: string; size?: number 
   );
 }
 
+/** A tiny color-only corner pennant marking a guild's HQ on the board -
+ * deliberately no coin/decal/text at this scale (illegible and it kept
+ * overlapping the castle icon underneath). Click the HQ for the full
+ * FlagBadge with decal in the info popup instead. */
+export function HqPennant({ color, size = 9 }: { color: string; size?: number }) {
+  const height = size * 1.3;
+  return (
+    <svg width={size} height={height} viewBox="0 0 10 13" aria-hidden="true">
+      <rect x="0" y="0" width="1.4" height="13" fill="#5c4a2e" />
+      <path d="M1.4 0 H10 L7.5 3.2 L10 6.4 H1.4 Z" fill={color} stroke="#000" strokeOpacity="0.3" strokeWidth="0.3" />
+    </svg>
+  );
+}
+
 export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: string; size?: number }) {
   const width = size * 1.15;
   const height = size * 0.8;
@@ -339,7 +387,7 @@ export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w
   if (active.length === 0) {
     return (
       <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-        <circle cx="12" cy="12" r="1.8" fill={ROAD_COLOR} opacity="0.75" />
+        <circle cx="12" cy="12" r="2.4" fill={ROAD_COLOR} opacity="0.8" />
       </svg>
     );
   }
@@ -354,9 +402,9 @@ export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w
 
   return (
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-      <path d={d} stroke="#000" strokeOpacity="0.18" strokeWidth="4.6" strokeLinecap="round" fill="none" />
-      <path d={d} stroke={ROAD_COLOR} strokeWidth="3.4" strokeLinecap="round" fill="none" />
-      {active.length >= 3 && <circle cx="12" cy="12" r="2.2" fill={ROAD_COLOR} />}
+      <path d={d} stroke="#000" strokeOpacity="0.22" strokeWidth="6.4" strokeLinecap="round" fill="none" />
+      <path d={d} stroke={ROAD_COLOR} strokeWidth="5" strokeLinecap="round" fill="none" />
+      {active.length >= 3 && <circle cx="12" cy="12" r="3" fill={ROAD_COLOR} />}
     </svg>
   );
 }

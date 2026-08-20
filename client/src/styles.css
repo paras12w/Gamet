@@ -378,18 +378,16 @@ h1, h2, h3 {
   filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
 }
 
-/* Kept as normal flex flow (not absolutely positioned with a negative
-   offset) so the banner stays inside the HQ block's own 2x2 box - letting
-   it overflow into a neighboring cell's screen area got it painted under
-   that sibling cell even with a higher z-index on this one. Left-aligned
-   (not centered) so it stays within the primary cell's own half of the
-   block instead of straddling the seam with the second HQ cell, which hit
-   the same paint-order issue at a smaller scale. */
-.hq-flag-slot {
-  align-self: flex-start;
-  margin-left: 6%;
-  margin-bottom: -8%;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.65));
+/* A small color-only corner marker, not a legible banner - kept fully
+   inside .hq-castle-wrap's own 200%x200% box (no negative offset) so it
+   can't overflow into a neighboring cell's screen area and get painted
+   under that sibling, which is what broke the old larger flag banner. */
+.hq-pennant {
+  position: absolute;
+  top: 3%;
+  left: 3%;
+  z-index: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
 
 .grid-cell--battle {

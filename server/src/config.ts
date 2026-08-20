@@ -99,6 +99,11 @@ export const CONFIG = {
   // castle that borders a river tile.
   RIVERSIDE_SILVER_BONUS: Number(process.env.RIVERSIDE_SILVER_BONUS ?? 2),
 
+  // Silver toll to claim a river's bridge-crossing cell with a banked tile
+  // placement. Rivers are otherwise fully impassable - this is the only
+  // way across.
+  BRIDGE_TOLL_SILVER: Number(process.env.BRIDGE_TOLL_SILVER ?? 6),
+
   // Sector specialization: once a guild has this many wins in one of the
   // three kingdom sectors, every future win there gets a permanent bonus
   // on top of the base sector bonus (and any structure doubling).

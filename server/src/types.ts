@@ -23,6 +23,8 @@ export interface Cell {
   owner: string | null; // guild id
   resourceKind?: ResourceKind; // only set when type === "castle"
   river?: boolean; // unclaimable water tile; never set alongside resourceKind
+  riverCrossing?: boolean; // set alongside river: true - claimable by paying BRIDGE_TOLL_SILVER
+  riverFlowsAlongX?: boolean; // rendering hint - true if this river's main walk steps along x
 }
 
 export interface ChatMessage {

@@ -7,6 +7,7 @@ import {
   ExchangeIcon,
   FlagBadge,
   FoundryIcon,
+  HqPennant,
   KnightIcon,
   LumberCampIcon,
   MineIcon,
@@ -242,7 +243,7 @@ export function GridView({
             placementMode &&
             !!myGuildId &&
             cell.owner === null &&
-            !cell.river &&
+            (!cell.river || cell.riverCrossing) &&
             [
               `${cell.x + 1},${cell.y}`,
               `${cell.x - 1},${cell.y}`,
@@ -287,18 +288,22 @@ export function GridView({
                 .join(" ")}
               onClick={clickable ? handleClick : undefined}
               title={
-                cell.river
-                  ? "River — can't be settled"
-                  : isEligible
-                    ? "Place your banked tile here"
-                    : owner
-                      ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
-                      : isKeep
-                        ? `${RESOURCE_LABEL[kind]} — click for details`
-                        : "Open Field"
+                cell.riverCrossing
+                  ? isEligible
+                    ? "Bridge crossing — place a banked tile here to pay the toll and settle it"
+                    : "Bridge crossing — unclaimed"
+                  : cell.river
+                    ? "River — can't be settled"
+                    : isEligible
+                      ? "Place your banked tile here"
+                      : owner
+                        ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
+                        : isKeep
+                          ? `${RESOURCE_LABEL[kind]} — click for details`
+                          : "Open Field"
               }
             >
-              {cell.river && <RiverTile seed={cell.x * 7 + cell.y} />}
+              {cell.river && <RiverTile seed={cell.x * 7 + cell.y} vertical={cell.riverFlowsAlongX} crossing={cell.riverCrossing} />}
               {owner && cell.type === "empty" && <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} />}
 
               {showTree && <TreeIcon size={13} seed={cell.x * 7 + cell.y} />}
@@ -307,15 +312,15 @@ export function GridView({
 
               {isPrimaryHq && (
                 <div className="hq-castle-wrap">
-                  <span className="hq-flag-slot">
-                    <FlagBadge color={owner!.color} decal={owner!.flagDecal} size={26} />
+                  <CastleIcon color={owner!.color} size="64%" />
+                  <span className="hq-pennant">
+                    <HqPennant color={owner!.color} size={9} />
                   </span>
-                  <CastleIcon color={owner!.color} size="52%" />
                 </div>
               )}
 
               {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
-              {cell.type === "empty" && owner && <KnightIcon color={owner.color} size={17} />}
+              {cell.type === "empty" && owner && <KnightIcon color={owner.color} size={11} />}
               {isEligible && (
                 <svg className="grid-cell__place-marker" width="42%" height="42%" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="10" y="3" width="4" height="18" rx="1.5" fill="currentColor" />

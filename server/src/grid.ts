@@ -83,34 +83,47 @@ export function scatterNeutralPositions(count: number, minSpacing: number, avoid
   return positions;
 }
 
-/** Carves `count` winding rivers across the map (roughly edge to edge),
- * each a random walk biased toward one direction with perpendicular
- * jitter. About one cell in six along the path is left as a ford - a
- * normal, claimable gap - so a river narrows travel without sealing the
- * map into disconnected halves. Returns the blocked (non-ford) river
- * cells; ford cells are just left out of the result entirely. */
-export function generateRivers(count: number): Set<CellKey> {
+export interface RiverCell {
+  // True if the river's main walk steps along the grid's x index (as
+  // opposed to y) - since the client renders x as the vertical screen
+  // axis, this cell's water should render with vertical-flowing texture
+  // when true, horizontal when false. Purely a rendering hint.
+  flowsAlongX: boolean;
+  // A buyable bridge point: still open water (unclaimable directly), but
+  // a guild can spend a banked tile placement here to pay a toll and
+  // claim it, rather than the river just having a random unclaimable gap.
+  crossing: boolean;
+}
+
+/** Carves `count` winding, fully continuous rivers across the map (roughly
+ * edge to edge), each a random walk biased toward one direction with
+ * perpendicular jitter. About one cell in six along the path is marked as
+ * a bridge crossing instead of leaving a plain gap - the river never
+ * breaks on its own, but a guild can pay a toll at a crossing to claim it
+ * (see BRIDGE_TOLL_SILVER / placeTile). */
+export function generateRivers(count: number): Map<CellKey, RiverCell> {
   const size = CONFIG.GRID_SIZE;
-  const river = new Set<CellKey>();
+  const river = new Map<CellKey, RiverCell>();
   for (let i = 0; i < count; i++) {
-    const horizontal = Math.random() < 0.5;
-    let x = horizontal ? 0 : Math.floor(Math.random() * size);
-    let y = horizontal ? Math.floor(Math.random() * size) : 0;
+    const flowsAlongX = Math.random() < 0.5;
+    let x = flowsAlongX ? 0 : Math.floor(Math.random() * size);
+    let y = flowsAlongX ? Math.floor(Math.random() * size) : 0;
     let step = 0;
     while (inBounds(x, y)) {
-      const isFord = step % 6 === 5;
-      if (!isFord) river.add(cellKey(x, y));
+      const crossing = step % 6 === 5;
+      river.set(cellKey(x, y), { flowsAlongX, crossing });
       // occasionally widen the river by a cell for visual variety
-      if (!isFord && Math.random() < 0.3) {
-        const wx = horizontal ? x : x + (Math.random() < 0.5 ? 1 : -1);
-        const wy = horizontal ? y + (Math.random() < 0.5 ? 1 : -1) : y;
-        if (inBounds(wx, wy)) river.add(cellKey(wx, wy));
+      if (!crossing && Math.random() < 0.3) {
+        const wx = flowsAlongX ? x : x + (Math.random() < 0.5 ? 1 : -1);
+        const wy = flowsAlongX ? y + (Math.random() < 0.5 ? 1 : -1) : y;
+        const wKey = cellKey(wx, wy);
+        if (inBounds(wx, wy) && !river.has(wKey)) river.set(wKey, { flowsAlongX, crossing: false });
       }
-      if (horizontal) x += 1;
+      if (flowsAlongX) x += 1;
       else y += 1;
       // perpendicular jitter for a winding path
       if (Math.random() < 0.55) {
-        if (horizontal) y += Math.random() < 0.5 ? 1 : -1;
+        if (flowsAlongX) y += Math.random() < 0.5 ? 1 : -1;
         else x += Math.random() < 0.5 ? 1 : -1;
       }
       step++;

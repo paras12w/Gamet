@@ -5,7 +5,7 @@ import { useGameSocket } from "./hooks/useGameSocket";
 import { useToasts } from "./hooks/useToasts";
 import { useSound } from "./hooks/useSound";
 import { UsernameScreen } from "./components/UsernameScreen";
-import { RulesScreen } from "./components/RulesScreen";
+import { RulesModal, RulesScreen } from "./components/RulesScreen";
 import { ModeSelectScreen } from "./components/ModeSelectScreen";
 import { TickerTape } from "./components/TickerTape";
 import { Timer } from "./components/Timer";
@@ -40,6 +40,7 @@ export default function App() {
   const { toasts, dismiss } = useToasts(snapshot, identity.guildId, play, chatMessages);
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
   const [guildMenuTab, setGuildMenuTab] = useState<GuildMenuTab>("overview");
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("board");
   const [placementMode, setPlacementMode] = useState(false);
   const lastChatCount = useRef(0);
@@ -119,10 +120,16 @@ export default function App() {
         <TickerTape snapshot={snapshot} />
         <header className="app__header">
           <div className="app__brand">GAMET</div>
-          <button type="button" className="mute-toggle" onClick={toggleMuted} aria-label={muted ? "Unmute sound" : "Mute sound"}>
-            {muted ? "🔇" : "🔊"}
-          </button>
+          <div className="app__header-actions">
+            <button type="button" className="rules-toggle" onClick={() => setRulesModalOpen(true)}>
+              📜 Rules
+            </button>
+            <button type="button" className="mute-toggle" onClick={toggleMuted} aria-label={muted ? "Unmute sound" : "Mute sound"}>
+              {muted ? "🔇" : "🔊"}
+            </button>
+          </div>
         </header>
+        {rulesModalOpen && <RulesModal onClose={() => setRulesModalOpen(false)} />}
         <main className="app__main">
           <div className={`app__board-pane${mobileTab === "board" ? " app__pane--active" : ""}`}>
             <GridView snapshot={snapshot} myGuildId={identity.guildId} placementMode={placementMode} onPlaceTile={handlePlaceTile} />

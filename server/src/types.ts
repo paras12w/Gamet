@@ -65,6 +65,7 @@ export interface RoundResultEntry {
     | "battle_lost"
     | "battle_tied"
     | "battle_forfeit"
+    | "battle_warded" // the loser spent a Palisade Ward - no ground lost, streak reset instead
     | "no_proposal"
     | "takeover_win"
     | "takeover_lost";
@@ -131,6 +132,10 @@ export interface Guild {
   currentStreak: number; // consecutive rounds this guild has won (any outcome); resets on server restart
   recentWinSectors: string[]; // last 3 sectors won in, oldest first; drives the diversification bonus; resets on server restart
   isBot: boolean; // true for an always-on AI-controlled guild; never surfaced to clients
+  title: string; // short custom epithet bought from the Market; persists across sessions
+  wards: number; // Palisade Wards held (each absorbs one lost battle); resets on server restart
+  bridgeCredits: number; // free river crossings held (skip BRIDGE_TOLL_SILVER); resets on server restart
+  tilePurchasesThisSession: number; // drives the Market's escalating Buy Field price; resets each session
 }
 
 export interface PublicGuild {
@@ -163,6 +168,10 @@ export interface PublicGuild {
   leaderless: boolean;
   achievements: AchievementKey[];
   sectorWins: Record<string, number>;
+  title: string;
+  wards: number;
+  bridgeCredits: number;
+  tilePurchasesThisSession: number;
 }
 
 export interface Wager {

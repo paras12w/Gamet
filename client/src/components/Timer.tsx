@@ -20,9 +20,10 @@ export function Timer({ snapshot }: { snapshot: GameStateSnapshot }) {
   const total = snapshot.roundEndsAt - snapshot.roundStartedAt;
   const remaining = snapshot.roundEndsAt - now;
   const fraction = total > 0 ? remaining / total : 0;
+  const urgent = remaining > 0 && remaining <= 15000;
 
   return (
-    <div className="panel timer-panel">
+    <div className={urgent ? "panel timer-panel timer-panel--urgent" : "panel timer-panel"}>
       <Hourglass fraction={fraction} size={92} />
       <div className="timer-panel__clock">{formatClock(remaining)}</div>
       <div className="timer-panel__meta">

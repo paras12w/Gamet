@@ -21,6 +21,8 @@ import {
   BOT_ALLIANCE_PROPOSE_CHANCE,
   BOT_COUNT,
   BOT_GUILD_NAMES,
+  BOT_MARKET_TILE_CHANCE,
+  BOT_MARKET_WARD_CHANCE,
   BOT_SCOUT_CHANCE,
   BOT_TICKER_POOL,
   BOT_USERNAMES,
@@ -34,11 +36,13 @@ import {
   loadAllGuildRows,
   recordSessionResult,
   updateGuildAchievements,
+  updateGuildFlag,
   updateGuildLeader,
   updateGuildMembers,
   updateGuildSessionsWon,
   updateGuildTagline,
   updateGuildTakeovers,
+  updateGuildTitle,
   updateGuildTokens,
 } from "./db.js";
 import type {
@@ -175,7 +179,7 @@ export class GameEngine {
   private pickBotPlacement(bot: Guild, candidates: CellKey[]): CellKey {
     const affordable = candidates.filter((key) => {
       const cell = this.grid.get(key);
-      return !cell?.riverCrossing || bot.tokens >= CONFIG.BRIDGE_TOLL_SILVER;
+      return !cell?.riverCrossing || bot.bridgeCredits > 0 || bot.tokens >= CONFIG.BRIDGE_TOLL_SILVER;
     });
     const pool = affordable.length > 0 ? affordable : candidates;
 
@@ -249,6 +253,18 @@ export class GameEngine {
           this.proposeWager(bot.id, bot.leaderSecret, target.id, amount);
         }
       }
+
+      // Market: only spend down to a reserve, so a bot never trades away
+      // silver it needs for scouting/bridging just to buy a ward.
+      if (bot.wards < CONFIG.MAX_WARDS && bot.tokens >= CONFIG.WARD_COST * 3 && Math.random() < BOT_MARKET_WARD_CHANCE) {
+        this.buyWard(bot.id, bot.leaderSecret);
+      } else if (
+        bot.pendingTiles < CONFIG.MAX_PENDING_TILES &&
+        bot.tokens >= (CONFIG.BUY_TILE_BASE_COST + bot.tilePurchasesThisSession * CONFIG.BUY_TILE_COST_STEP) * 3 &&
+        Math.random() < BOT_MARKET_TILE_CHANCE
+      ) {
+        this.buyTile(bot.id, bot.leaderSecret);
+      }
     }
   }
 
@@ -316,6 +332,10 @@ export class GameEngine {
         currentStreak: 0,
         recentWinSectors: [],
         isBot: !!row.is_bot,
+        title: row.title,
+        wards: 0,
+        bridgeCredits: 0,
+        tilePurchasesThisSession: 0,
       };
       this.guilds.set(guild.id, guild);
       this.placeHq(guild);
@@ -401,6 +421,10 @@ export class GameEngine {
       currentStreak: 0,
       recentWinSectors: [],
       isBot,
+      title: "",
+      wards: 0,
+      bridgeCredits: 0,
+      tilePurchasesThisSession: 0,
     };
     this.guilds.set(guild.id, guild);
     this.placeHq(guild);
@@ -419,6 +443,7 @@ export class GameEngine {
       tagline: guild.tagline,
       achievements: JSON.stringify([]),
       is_bot: isBot ? 1 : 0,
+      title: guild.title,
       created_at: guild.createdAt,
     });
 
@@ -846,12 +871,16 @@ export class GameEngine {
     const adjacent = neighborsOf(key).some((n) => this.grid.get(n)?.owner === guild.id);
     if (!adjacent) return { ok: false, error: "Must place next to your existing territory" };
     if (cell.riverCrossing) {
-      if (guild.tokens < CONFIG.BRIDGE_TOLL_SILVER) {
+      if (guild.bridgeCredits > 0) {
+        guild.bridgeCredits -= 1;
+        this.postSystemMessage(guild.id, `🌉 Used a Bridge Permit to cross toll-free.`);
+      } else if (guild.tokens < CONFIG.BRIDGE_TOLL_SILVER) {
         return { ok: false, error: `Building a bridge here costs ${CONFIG.BRIDGE_TOLL_SILVER} silver - you don't have enough` };
+      } else {
+        guild.tokens -= CONFIG.BRIDGE_TOLL_SILVER;
+        updateGuildTokens(guild.id, guild.tokens);
+        this.postSystemMessage(guild.id, `🌉 Paid ${CONFIG.BRIDGE_TOLL_SILVER} silver to bridge the river.`);
       }
-      guild.tokens -= CONFIG.BRIDGE_TOLL_SILVER;
-      updateGuildTokens(guild.id, guild.tokens);
-      this.postSystemMessage(guild.id, `🌉 Paid ${CONFIG.BRIDGE_TOLL_SILVER} silver to bridge the river.`);
     }
     guild.squares.add(key);
     this.claimCell(guild, cell);
@@ -940,19 +969,32 @@ export class GameEngine {
       outcomeA = aWins ? "battle_won" : pa === null ? "battle_forfeit" : "battle_lost";
       outcomeB = aWins ? (pb === null ? "battle_forfeit" : "battle_lost") : "battle_won";
 
-      loser.squares.delete(loserCell);
-      winner.squares.add(loserCell);
-      const capturedCell = this.grid.get(loserCell);
-      if (capturedCell) capturedCell.owner = winner.id;
+      // A Palisade Ward absorbs the loss outright: no ground changes hands
+      // and the streak resets, but the winner's call still earns its usual
+      // tile/silver reward - the ward blunts the attack, it doesn't punish
+      // a good call.
+      const warded = loser.wards > 0;
+      if (warded) {
+        loser.wards -= 1;
+        this.postSystemMessage(loser.id, `🛡️ A Palisade Ward absorbed ${winner.name}'s attack - our border held.`);
+        this.postSystemMessage(winner.id, `🛡️ ${loser.name}'s Palisade Ward blunted our advance - no ground gained.`);
+        if (loser.id === a.id) outcomeA = "battle_warded";
+        else outcomeB = "battle_warded";
+      } else {
+        loser.squares.delete(loserCell);
+        winner.squares.add(loserCell);
+        const capturedCell = this.grid.get(loserCell);
+        if (capturedCell) capturedCell.owner = winner.id;
+      }
       const winnerSector = this.applySectorBonus(winner);
       const winnerTileCount = tileCountFor(winner.id) + winnerSector.tileBonus;
       const bonusTileOutcome = this.grantTile(winner, winnerTileCount);
 
-      winner.streaks[loser.id] = (winner.streaks[loser.id] ?? 0) + 1;
+      winner.streaks[loser.id] = warded ? 0 : (winner.streaks[loser.id] ?? 0) + 1;
       loser.streaks[winner.id] = 0;
 
       let takeover = false;
-      if (winner.streaks[loser.id] >= CONFIG.TAKEOVER_STREAK) {
+      if (!warded && winner.streaks[loser.id] >= CONFIG.TAKEOVER_STREAK) {
         takeover = true;
         this.doTakeover(winner, loser);
       }
@@ -1209,6 +1251,118 @@ export class GameEngine {
     return { ok: true };
   }
 
+  // ---------- the Market (silver sinks) ----------
+
+  private requireLeader(guildId: string, leaderSecret: string): Guild | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can spend the treasury" };
+    return guild;
+  }
+
+  /** Buy a field outright: pays straight into the tile bank instead of
+   * waiting on a winning call. Cost climbs with every purchase the guild
+   * makes this session, so it's a real spend and not a free faucet. */
+  buyTile(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.requireLeader(guildId, leaderSecret);
+    if (!("id" in guild)) return guild;
+    if (guild.pendingTiles >= CONFIG.MAX_PENDING_TILES) return { ok: false, error: "Your tile bank is already full" };
+    const cost = CONFIG.BUY_TILE_BASE_COST + guild.tilePurchasesThisSession * CONFIG.BUY_TILE_COST_STEP;
+    if (guild.tokens < cost) return { ok: false, error: `Not enough silver - a field costs ${cost} right now` };
+    guild.tokens -= cost;
+    updateGuildTokens(guild.id, guild.tokens);
+    guild.tilePurchasesThisSession += 1;
+    this.grantTile(guild, 1);
+    this.postSystemMessage(guild.id, `🎒 Bought a field outright for ${cost} silver.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  /** Buy one free river crossing - the next bridge toll this guild would
+   * pay is waived instead. */
+  buyBridgePermit(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.requireLeader(guildId, leaderSecret);
+    if (!("id" in guild)) return guild;
+    if (guild.tokens < CONFIG.BRIDGE_PERMIT_COST) return { ok: false, error: `Not enough silver - a Bridge Permit costs ${CONFIG.BRIDGE_PERMIT_COST}` };
+    guild.tokens -= CONFIG.BRIDGE_PERMIT_COST;
+    updateGuildTokens(guild.id, guild.tokens);
+    guild.bridgeCredits += 1;
+    this.postSystemMessage(guild.id, `🌉 Bought a Bridge Permit - your next river crossing is toll-free.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  /** Buy a Palisade Ward: absorbs this guild's next lost battle outright -
+   * the border holds and the streak resets instead of the cell changing
+   * hands. Capped so it can't be stockpiled into invincibility. */
+  buyWard(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.requireLeader(guildId, leaderSecret);
+    if (!("id" in guild)) return guild;
+    if (guild.wards >= CONFIG.MAX_WARDS) return { ok: false, error: `You already hold the maximum of ${CONFIG.MAX_WARDS} wards` };
+    if (guild.tokens < CONFIG.WARD_COST) return { ok: false, error: `Not enough silver - a Palisade Ward costs ${CONFIG.WARD_COST}` };
+    guild.tokens -= CONFIG.WARD_COST;
+    updateGuildTokens(guild.id, guild.tokens);
+    guild.wards += 1;
+    this.postSystemMessage(guild.id, `🛡️ Bought a Palisade Ward - your next lost battle will be absorbed instead of costing ground.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  /** Buy a Spyglass: scouts every living rival with a locked-in call this
+   * round in one purchase, instead of paying per guild. */
+  buySpyglass(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.requireLeader(guildId, leaderSecret);
+    if (!("id" in guild)) return guild;
+    const targets = this.livingGuilds().filter((g) => g.id !== guild.id && g.proposal && !g.scoutedBy.has(guild.id));
+    if (targets.length === 0) return { ok: false, error: "No rival calls left to reveal this round" };
+    if (guild.tokens < CONFIG.SPYGLASS_COST) return { ok: false, error: `Not enough silver - a Spyglass costs ${CONFIG.SPYGLASS_COST}` };
+    guild.tokens -= CONFIG.SPYGLASS_COST;
+    updateGuildTokens(guild.id, guild.tokens);
+    for (const target of targets) target.scoutedBy.add(guild.id);
+    this.postSystemMessage(guild.id, `🔭 Spyglass revealed ${targets.length} rival call${targets.length === 1 ? "" : "s"} this round.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  /** Buy a Herald's Favor: rerolls this guild's flag color and emblem at
+   * random (never landing on the same combination it already had). */
+  buyHeraldFavor(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.requireLeader(guildId, leaderSecret);
+    if (!("id" in guild)) return guild;
+    if (guild.tokens < CONFIG.HERALD_FAVOR_COST) return { ok: false, error: `Not enough silver - a Herald's Favor costs ${CONFIG.HERALD_FAVOR_COST}` };
+    guild.tokens -= CONFIG.HERALD_FAVOR_COST;
+    updateGuildTokens(guild.id, guild.tokens);
+    let color = guild.color;
+    let flagDecal = guild.flagDecal;
+    for (let attempt = 0; attempt < 20 && color === guild.color && flagDecal === guild.flagDecal; attempt++) {
+      color = randomFlagColor();
+      flagDecal = randomFlagDecal();
+    }
+    guild.color = color;
+    guild.flagDecal = flagDecal;
+    updateGuildFlag(guild.id, guild.color, guild.flagDecal);
+    this.postSystemMessage(guild.id, `🎨 The herald unveils a new banner for our guild.`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  /** Buy a custom Guild Title - a short epithet shown under the guild's
+   * name everywhere it appears. */
+  buyTitle(guildId: string, leaderSecret: string, title: string): { ok: true } | { ok: false; error: string } {
+    const guild = this.requireLeader(guildId, leaderSecret);
+    if (!("id" in guild)) return guild;
+    const clean = title.trim().slice(0, CONFIG.TITLE_MAX_LENGTH);
+    if (!clean) return { ok: false, error: "Enter a title first" };
+    if (guild.tokens < CONFIG.TITLE_COST) return { ok: false, error: `Not enough silver - a Guild Title costs ${CONFIG.TITLE_COST}` };
+    guild.tokens -= CONFIG.TITLE_COST;
+    updateGuildTokens(guild.id, guild.tokens);
+    guild.title = clean;
+    updateGuildTitle(guild.id, guild.title);
+    this.postSystemMessage(guild.id, `🏷️ Our guild is now known as "${guild.name}, ${clean}."`);
+    this.emitUpdate();
+    return { ok: true };
+  }
+
   private detectNewBattles(): void {
     const existingEdges = new Set(this.battles.map((b) => [b.cellA, b.cellB].sort().join("|")));
     for (const [key, cell] of this.grid) {
@@ -1284,6 +1438,7 @@ export class GameEngine {
       guild.scoutedBy = new Set();
       guild.lastCallRound = this.roundNumber;
       guild.leaderless = false;
+      guild.tilePurchasesThisSession = 0;
       this.placeHq(guild);
     }
     this.battles = [];
@@ -1342,6 +1497,10 @@ export class GameEngine {
       leaderless: g.leaderless,
       achievements: [...g.achievements],
       sectorWins: g.sectorWins,
+      title: g.title,
+      wards: g.wards,
+      bridgeCredits: g.bridgeCredits,
+      tilePurchasesThisSession: g.tilePurchasesThisSession,
     };
   }
 

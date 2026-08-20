@@ -127,6 +127,48 @@ export function setTagline(guildId: string, leaderSecret: string, tagline: strin
   });
 }
 
+export function buyTile(guildId: string, leaderSecret: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-tile`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret }),
+  });
+}
+
+export function buyBridgePermit(guildId: string, leaderSecret: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-bridge-permit`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret }),
+  });
+}
+
+export function buyWard(guildId: string, leaderSecret: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-ward`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret }),
+  });
+}
+
+export function buySpyglass(guildId: string, leaderSecret: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-spyglass`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret }),
+  });
+}
+
+export function buyHeraldFavor(guildId: string, leaderSecret: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-herald-favor`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret }),
+  });
+}
+
+export function buyTitle(guildId: string, leaderSecret: string, title: string) {
+  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-title`, {
+    method: "POST",
+    body: JSON.stringify({ leaderSecret, title }),
+  });
+}
+
 export function getGlobalChatHistory() {
   return request<{ messages: ChatMessage[] }>(`/chat/global`);
 }

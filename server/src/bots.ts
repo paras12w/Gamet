@@ -33,3 +33,9 @@ export const BOT_ALLIANCE_ACCEPT_CHANCE = 0.6;
 export const BOT_WAGER_PROPOSE_CHANCE = 0.04;
 export const BOT_WAGER_ACCEPT_CHANCE = 0.5;
 export const BOT_WAGER_STAKE_FRACTION = 0.3;
+
+// Market: bots shop too, at a modest pace, so a human doesn't just outspend
+// silent AI rivals - a bot only ever buys when it's flush enough to spare
+// the silver (see the reserve checks in runBotActions).
+export const BOT_MARKET_WARD_CHANCE = 0.06;
+export const BOT_MARKET_TILE_CHANCE = 0.05;

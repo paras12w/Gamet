@@ -15,7 +15,11 @@ export function Leaderboard({ snapshot, myGuildId }: { snapshot: GameStateSnapsh
           <div key={g.id} className={["leaderboard__row", g.id === myGuildId ? "leaderboard__row--mine" : "", !g.alive ? "leaderboard__row--dead" : ""].join(" ")}>
             <span className="leaderboard__rank">#{i + 1}</span>
             <FlagBadge color={g.color} decal={g.flagDecal} size={20} />
-            <span className="leaderboard__name">{g.name}</span>
+            <span className="leaderboard__name">
+              {g.name}
+              {g.title && <span className="leaderboard__epithet">, {g.title}</span>}
+              {g.wards > 0 && <span title={`${g.wards} Palisade Ward${g.wards === 1 ? "" : "s"}`}> 🛡️</span>}
+            </span>
             <span className="leaderboard__squares">{g.squareCount} fields</span>
             <span className="leaderboard__tokens">{formatCoins(g.tokens)}</span>
           </div>

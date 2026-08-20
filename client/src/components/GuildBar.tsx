@@ -18,7 +18,7 @@ export function GuildBar({
   snapshot: GameStateSnapshot;
   identity: Identity;
   placementMode: boolean;
-  onOpenMenu: (tab?: "scouting") => void;
+  onOpenMenu: (tab?: "scouting" | "market") => void;
   onTogglePlacement: () => void;
 }) {
   const [ticker, setTicker] = useState("");
@@ -53,17 +53,27 @@ export function GuildBar({
       <button type="button" className="guild-bar__header" onClick={() => onOpenMenu()}>
         <FlagBadge color={guild.color} decal={guild.flagDecal} size={26} />
         <span className="guild-bar__title">
-          <span className="guild-bar__name">{guild.name}</span>
+          <span className="guild-bar__name">
+            {guild.name}
+            {guild.title && <span className="guild-bar__epithet">, {guild.title}</span>}
+          </span>
           <span className="guild-bar__meta">
             #{rank} · {guild.squareCount} fields · {formatCoins(guild.tokens)}
+            {guild.wards > 0 ? ` · 🛡️×${guild.wards}` : ""}
+            {guild.bridgeCredits > 0 ? ` · 🌉×${guild.bridgeCredits}` : ""}
           </span>
         </span>
         <span className="guild-bar__menu-hint">Guild Menu ▸</span>
       </button>
 
-      <button type="button" className="guild-bar__scout-btn" onClick={() => onOpenMenu("scouting")}>
-        🔭 Scout rival guilds
-      </button>
+      <div className="guild-bar__actions">
+        <button type="button" className="guild-bar__scout-btn" onClick={() => onOpenMenu("scouting")}>
+          🔭 Scout
+        </button>
+        <button type="button" className="guild-bar__scout-btn" onClick={() => onOpenMenu("market")}>
+          🏪 Market
+        </button>
+      </div>
 
       <div className="tile-bank">
         <span className={guild.pendingTiles >= MAX_PENDING_TILES - 1 ? "tile-bank__label tile-bank__label--hot" : "tile-bank__label"}>

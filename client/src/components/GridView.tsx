@@ -303,6 +303,16 @@ export function GridView({
     setAnchorRect(null);
   }
 
+  useEffect(() => {
+    if (!selectedKeep) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closePopup();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKeep]);
+
   return (
     <div className="grid-view-wrap" ref={wrapRef}>
       {placementMode && <div className="placement-hint">🎯 Choose an open field next to your territory to place a banked tile.</div>}

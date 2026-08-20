@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, GameStateSnapshot, Identity } from "../types";
 import {
   breakAlliance,
+  buyBridgePermit,
+  buyHeraldFavor,
+  buySpyglass,
+  buyTile,
+  buyTitle,
+  buyWard,
   cancelWager,
   claimLeadership,
   getChatHistory,
@@ -21,13 +27,24 @@ import { AllianceChatThread } from "./AllianceChatThread";
 import { formatCoins } from "../lib/coins";
 import { LiveTicker } from "./GuildBar";
 
-export type GuildMenuTab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "chat";
+export type GuildMenuTab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "market" | "chat";
 type Tab = GuildMenuTab;
 
 // Mirrors server/src/config.ts CONFIG.SCOUT_COST / COUNCIL_SCOUT_DISCOUNT
 // defaults - same pattern as GuildBar's MAX_PENDING_TILES constant.
 const SCOUT_COST = 5;
 const COUNCIL_SCOUT_DISCOUNT = 2;
+
+// Mirrors server/src/config.ts's Market constants.
+const BUY_TILE_BASE_COST = 12;
+const BUY_TILE_COST_STEP = 6;
+const BRIDGE_PERMIT_COST = 10;
+const WARD_COST = 18;
+const MAX_WARDS = 3;
+const SPYGLASS_COST = 12;
+const HERALD_FAVOR_COST = 8;
+const TITLE_COST = 15;
+const TITLE_MAX_LENGTH = 28;
 
 // The three sectors with an actual mechanical bonus - mirrors server/src/
 // gameEngine.ts KINGDOM_SECTORS. Consumer/Industrial/Index are flavor-only.
@@ -75,6 +92,9 @@ export function GuildMenu({
   const [claimError, setClaimError] = useState<string | null>(null);
   const [taglineDraft, setTaglineDraft] = useState<string | null>(null);
   const [taglineSaving, setTaglineSaving] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [marketBusy, setMarketBusy] = useState<string | null>(null);
+  const [marketError, setMarketError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   const guild = snapshot.guilds.find((g) => g.id === identity.guildId);
@@ -100,6 +120,14 @@ export function GuildMenu({
   useEffect(() => {
     if (tab === "chat") logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [combined.length, tab]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   if (!guild) return null;
 
@@ -127,6 +155,28 @@ export function GuildMenu({
     } finally {
       setDiploBusy(null);
     }
+  }
+
+  async function runMarket(key: string, action: () => Promise<unknown>) {
+    if (!guildId || !identity.leaderSecret) return;
+    setMarketBusy(key);
+    setMarketError(null);
+    try {
+      await action();
+      soundEngine.play("click");
+    } catch (err) {
+      setMarketError(err instanceof Error ? err.message : "Purchase failed");
+      soundEngine.play("error");
+    } finally {
+      setMarketBusy(null);
+    }
+  }
+
+  async function submitTitlePurchase(e: React.FormEvent) {
+    e.preventDefault();
+    if (!titleDraft.trim() || !guildId || !identity.leaderSecret) return;
+    await runMarket("buy-title", () => buyTitle(guildId, identity.leaderSecret!, titleDraft));
+    setTitleDraft("");
   }
 
   async function submitWagerChallenge(e: React.FormEvent) {
@@ -189,7 +239,10 @@ export function GuildMenu({
         <div className="guild-menu__header">
           <FlagBadge color={guild.color} decal={guild.flagDecal} size={32} />
           <div className="guild-menu__title">
-            <h2>{guild.name}</h2>
+            <h2>
+              {guild.name}
+              {guild.title && <span className="guild-menu__epithet">, {guild.title}</span>}
+            </h2>
             <p>
               #{rank} · {guild.squareCount} fields · {formatCoins(guild.tokens)} · led by {guild.leaderUsername}
             </p>
@@ -217,6 +270,9 @@ export function GuildMenu({
           </button>
           <button type="button" className={tab === "sectors" ? "active" : ""} onClick={() => setTab("sectors")}>
             Kingdoms
+          </button>
+          <button type="button" className={tab === "market" ? "active" : ""} onClick={() => setTab("market")}>
+            Market
           </button>
           <button type="button" className={tab === "chat" ? "active" : ""} onClick={() => setTab("chat")}>
             Chat
@@ -689,6 +745,138 @@ export function GuildMenu({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {tab === "market" && (
+            <div className="market-tab">
+              <p className="wagers__disclaimer">
+                🏪 Spend silver on lasting advantages instead of just banking it. Only your guild's leader can buy.
+              </p>
+
+              <div className="market__assets">
+                <span>🛡️ {guild.wards} ward{guild.wards === 1 ? "" : "s"} held</span>
+                <span>🌉 {guild.bridgeCredits} free crossing{guild.bridgeCredits === 1 ? "" : "s"}</span>
+              </div>
+
+              {!isLeader && <div className="empty-hint">Only your guild's leader can spend the treasury.</div>}
+
+              <div className="market__grid">
+                <div className="market-item">
+                  <span className="market-item__icon">🎒</span>
+                  <div className="market-item__body">
+                    <h4>Buy a Field</h4>
+                    <p>Skip the wait - bank a tile outright. Costs more each time you buy one this season.</p>
+                  </div>
+                  {isLeader && (
+                    <button
+                      type="button"
+                      className="diplomacy__btn"
+                      disabled={marketBusy === "buy-tile" || guild.pendingTiles >= 5}
+                      onClick={() => runMarket("buy-tile", () => buyTile(guildId!, identity.leaderSecret!))}
+                    >
+                      {guild.pendingTiles >= 5
+                        ? "Bank full"
+                        : `Buy (${BUY_TILE_BASE_COST + guild.tilePurchasesThisSession * BUY_TILE_COST_STEP}🪙)`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="market-item">
+                  <span className="market-item__icon">🌉</span>
+                  <div className="market-item__body">
+                    <h4>Bridge Permit</h4>
+                    <p>Your next river crossing costs no toll.</p>
+                  </div>
+                  {isLeader && (
+                    <button
+                      type="button"
+                      className="diplomacy__btn"
+                      disabled={marketBusy === "buy-bridge-permit"}
+                      onClick={() => runMarket("buy-bridge-permit", () => buyBridgePermit(guildId!, identity.leaderSecret!))}
+                    >
+                      Buy ({BRIDGE_PERMIT_COST}🪙)
+                    </button>
+                  )}
+                </div>
+
+                <div className="market-item">
+                  <span className="market-item__icon">🛡️</span>
+                  <div className="market-item__body">
+                    <h4>Palisade Ward</h4>
+                    <p>Absorbs your next lost battle outright - no ground or streak lost. Max {MAX_WARDS} held.</p>
+                  </div>
+                  {isLeader && (
+                    <button
+                      type="button"
+                      className="diplomacy__btn"
+                      disabled={marketBusy === "buy-ward" || guild.wards >= MAX_WARDS}
+                      onClick={() => runMarket("buy-ward", () => buyWard(guildId!, identity.leaderSecret!))}
+                    >
+                      {guild.wards >= MAX_WARDS ? "Max held" : `Buy (${WARD_COST}🪙)`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="market-item">
+                  <span className="market-item__icon">🔭</span>
+                  <div className="market-item__body">
+                    <h4>Spyglass</h4>
+                    <p>Scout every rival's locked-in call this round in one purchase.</p>
+                  </div>
+                  {isLeader && (
+                    <button
+                      type="button"
+                      className="diplomacy__btn"
+                      disabled={marketBusy === "buy-spyglass"}
+                      onClick={() => runMarket("buy-spyglass", () => buySpyglass(guildId!, identity.leaderSecret!))}
+                    >
+                      Buy ({SPYGLASS_COST}🪙)
+                    </button>
+                  )}
+                </div>
+
+                <div className="market-item">
+                  <span className="market-item__icon">🎨</span>
+                  <div className="market-item__body">
+                    <h4>Herald's Favor</h4>
+                    <p>Reroll your flag's color and emblem at random.</p>
+                  </div>
+                  {isLeader && (
+                    <button
+                      type="button"
+                      className="diplomacy__btn"
+                      disabled={marketBusy === "buy-herald-favor"}
+                      onClick={() => runMarket("buy-herald-favor", () => buyHeraldFavor(guildId!, identity.leaderSecret!))}
+                    >
+                      Buy ({HERALD_FAVOR_COST}🪙)
+                    </button>
+                  )}
+                </div>
+
+                <div className="market-item">
+                  <span className="market-item__icon">🏷️</span>
+                  <div className="market-item__body">
+                    <h4>Guild Title</h4>
+                    <p>A custom epithet shown under your guild's name{guild.title ? ` - currently "${guild.title}"` : ""}.</p>
+                    {isLeader && (
+                      <form className="market-item__title-form" onSubmit={submitTitlePurchase}>
+                        <input
+                          value={titleDraft}
+                          onChange={(e) => setTitleDraft(e.target.value)}
+                          maxLength={TITLE_MAX_LENGTH}
+                          placeholder="the Unyielding"
+                        />
+                        <button type="submit" disabled={!titleDraft.trim() || marketBusy === "buy-title"}>
+                          Buy ({TITLE_COST}🪙)
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {marketError && <div className="form-error">{marketError}</div>}
             </div>
           )}
 

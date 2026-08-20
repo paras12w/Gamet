@@ -126,6 +126,12 @@ h1, h2, h3 {
   background-position: 0 0, var(--brick-pos);
 }
 
+.app__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .mute-toggle {
   background: none;
   border: 1px solid var(--border);
@@ -143,6 +149,24 @@ h1, h2, h3 {
 }
 
 .mute-toggle:hover:not(:disabled) {
+  background: rgba(212, 168, 67, 0.08);
+  color: var(--gold-bright);
+}
+
+.rules-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  text-shadow: none;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-family: "Cinzel", serif;
+  height: 38px;
+  border-radius: 6px;
+  padding: 0 12px;
+}
+
+.rules-toggle:hover:not(:disabled) {
   background: rgba(212, 168, 67, 0.08);
   color: var(--gold-bright);
 }
@@ -173,6 +197,22 @@ h1, h2, h3 {
   font-variant-numeric: tabular-nums;
   line-height: 1;
   text-shadow: 0 0 16px rgba(212, 168, 67, 0.4);
+}
+
+.timer-panel--urgent .timer-panel__clock {
+  color: var(--crimson);
+  animation: timer-urgent-pulse 1s ease-in-out infinite;
+}
+
+@keyframes timer-urgent-pulse {
+  0%,
+  100% {
+    text-shadow: 0 0 16px rgba(164, 48, 42, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 28px rgba(232, 90, 42, 0.9);
+    transform: scale(1.04);
+  }
 }
 
 .timer-panel__meta {
@@ -770,9 +810,22 @@ h1, h2, h3 {
   font-family: "Cinzel", serif;
 }
 
-.guild-bar__scout-btn {
-  width: 100%;
+.guild-bar__epithet {
+  color: var(--text-dim);
+  font-family: "IM Fell English", serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.85em;
+}
+
+.guild-bar__actions {
+  display: flex;
+  gap: 6px;
   margin-bottom: 12px;
+}
+
+.guild-bar__scout-btn {
+  flex: 1;
   padding: 7px 10px;
   font-size: 0.72rem;
   font-family: "Cinzel", serif;
@@ -1274,6 +1327,87 @@ h1, h2, h3 {
   color: var(--text-dim);
 }
 
+.market-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.market__assets {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--gold-bright);
+  background: rgba(212, 168, 67, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.market__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.market-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border-dim);
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.market-item__icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.market-item__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.market-item__body h4 {
+  margin: 0;
+  color: var(--gold-bright);
+  font-size: 0.85rem;
+}
+
+.market-item__body p {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.market-item > .diplomacy__btn {
+  align-self: flex-start;
+}
+
+.market-item__title-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.market-item__title-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+.guild-menu__epithet {
+  color: var(--text-dim);
+  font-family: "IM Fell English", serif;
+  font-style: italic;
+  font-size: 0.85em;
+}
+
 .guild-menu__chat {
   flex: 1;
   display: flex;
@@ -1580,6 +1714,13 @@ button:disabled {
   flex: 1;
 }
 
+.leaderboard__epithet {
+  color: var(--text-dim);
+  font-family: "IM Fell English", serif;
+  font-style: italic;
+  font-size: 0.85em;
+}
+
 .leaderboard__squares,
 .leaderboard__tokens {
   font-size: 0.72rem;
@@ -1749,6 +1890,7 @@ button:disabled {
   border-radius: 8px;
   padding: 28px;
   width: 360px;
+  max-width: 92vw;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1809,6 +1951,67 @@ button:disabled {
   font-size: 0.85rem;
   color: var(--text-dim);
   line-height: 1.5;
+}
+
+.rules-category {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rules-category + .rules-category {
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-dim);
+}
+
+.rules-category__name {
+  margin: 0;
+  font-family: "Cinzel", serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+}
+
+.rules-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.rules-modal {
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.rules-modal .rules-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 6px;
+}
+
+.rules-modal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ---------- Mode select ---------- */

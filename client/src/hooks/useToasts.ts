@@ -53,9 +53,9 @@ export function useToasts(
           if (r.outcome === "expanded") playSound("expand");
           else if (r.outcome === "battle_won") playSound("battleWin");
           else if (r.outcome === "battle_lost" || r.outcome === "battle_forfeit" || r.outcome === "takeover_lost") playSound("battleLose");
+          else if (r.outcome === "battle_warded") playSound("battleWin");
 
-          const isTopCaller = (r.tilesGranted ?? 1) > 1;
-          if (isTopCaller && r.tileOutcome) {
+          if (r.topCaller && r.tileOutcome) {
             fresh.push({
               id: `${roundKey}-${r.guildId}-top-caller`,
               kind: "success",
@@ -68,7 +68,7 @@ export function useToasts(
             fresh.push({
               id: `${roundKey}-${r.guildId}-tile-lost`,
               kind: "danger",
-              text: isTopCaller
+              text: r.topCaller
                 ? "🔥 Your tile bank was nearly full — some of this round's top-call bonus tiles were destroyed!"
                 : "🔥 Your tile bank was already full (5/5) — this round's earned tile was destroyed!",
             });

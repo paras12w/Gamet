@@ -123,6 +123,34 @@ export const CONFIG = {
   // Diversification bonus: reward for a guild whose last 3 winning calls
   // hit 3 different kingdom sectors.
   DIVERSIFICATION_BONUS: Number(process.env.DIVERSIFICATION_BONUS ?? 5),
+
+  // ---------- Market (silver sinks) ----------
+
+  // Buy a field: base silver cost, rising by BUY_TILE_COST_STEP for every
+  // purchase the guild has already made this session (resets each season)
+  // - keeps it a real spend instead of a free-tile faucet.
+  BUY_TILE_BASE_COST: Number(process.env.BUY_TILE_BASE_COST ?? 12),
+  BUY_TILE_COST_STEP: Number(process.env.BUY_TILE_COST_STEP ?? 6),
+
+  // Bridge Permit: one free river-crossing toll (see BRIDGE_TOLL_SILVER).
+  BRIDGE_PERMIT_COST: Number(process.env.BRIDGE_PERMIT_COST ?? 10),
+
+  // Palisade Ward: absorbs the guild's next lost battle - the border holds,
+  // no ground or streak lost, but the attacker keeps their call's tile/
+  // silver reward. Capped per guild so it can't be stockpiled indefinitely.
+  WARD_COST: Number(process.env.WARD_COST ?? 18),
+  MAX_WARDS: Number(process.env.MAX_WARDS ?? 3),
+
+  // Spyglass: scouts every rival with a locked-in call this round in one
+  // purchase, instead of paying SCOUT_COST per guild.
+  SPYGLASS_COST: Number(process.env.SPYGLASS_COST ?? 12),
+
+  // Herald's Favor: reroll this guild's flag color and emblem at random.
+  HERALD_FAVOR_COST: Number(process.env.HERALD_FAVOR_COST ?? 8),
+
+  // Guild Title: a short custom epithet shown under the guild's name.
+  TITLE_COST: Number(process.env.TITLE_COST ?? 15),
+  TITLE_MAX_LENGTH: Number(process.env.TITLE_MAX_LENGTH ?? 28),
 };
 
 // Reserved chat channel id for the realm-wide chat, open to everyone

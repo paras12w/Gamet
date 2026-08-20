@@ -24,6 +24,7 @@ db.exec(`
     tagline TEXT NOT NULL DEFAULT '',
     achievements TEXT NOT NULL DEFAULT '[]',
     is_bot INTEGER NOT NULL DEFAULT 0,
+    title TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
   );
 
@@ -50,6 +51,7 @@ if (!hasColumn("takeovers")) db.exec(`ALTER TABLE guilds ADD COLUMN takeovers IN
 if (!hasColumn("tagline")) db.exec(`ALTER TABLE guilds ADD COLUMN tagline TEXT NOT NULL DEFAULT ''`);
 if (!hasColumn("achievements")) db.exec(`ALTER TABLE guilds ADD COLUMN achievements TEXT NOT NULL DEFAULT '[]'`);
 if (!hasColumn("is_bot")) db.exec(`ALTER TABLE guilds ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0`);
+if (!hasColumn("title")) db.exec(`ALTER TABLE guilds ADD COLUMN title TEXT NOT NULL DEFAULT ''`);
 
 export interface GuildRow {
   id: string;
@@ -65,14 +67,23 @@ export interface GuildRow {
   tagline: string;
   achievements: string;
   is_bot: number;
+  title: string;
   created_at: number;
 }
 
 export function insertGuildRow(row: GuildRow): void {
   db.prepare(
-    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, sessions_won, takeovers, tagline, achievements, is_bot, created_at)
-     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @sessions_won, @takeovers, @tagline, @achievements, @is_bot, @created_at)`
+    `INSERT INTO guilds (id, name, leader_username, leader_secret, color, flag_decal, members, tokens, sessions_won, takeovers, tagline, achievements, is_bot, title, created_at)
+     VALUES (@id, @name, @leader_username, @leader_secret, @color, @flag_decal, @members, @tokens, @sessions_won, @takeovers, @tagline, @achievements, @is_bot, @title, @created_at)`
   ).run(row);
+}
+
+export function updateGuildTitle(id: string, title: string): void {
+  db.prepare(`UPDATE guilds SET title = ? WHERE id = ?`).run(title, id);
+}
+
+export function updateGuildFlag(id: string, color: string, flagDecal: string): void {
+  db.prepare(`UPDATE guilds SET color = ?, flag_decal = ? WHERE id = ?`).run(color, flagDecal, id);
 }
 
 export function updateGuildTokens(id: string, tokens: number): void {

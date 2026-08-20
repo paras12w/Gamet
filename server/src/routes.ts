@@ -174,6 +174,58 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ ok: true });
   });
 
+  // ---------- the Market ----------
+
+  router.post("/guilds/:id/market/buy-tile", (req, res) => {
+    const { leaderSecret } = req.body ?? {};
+    if (typeof leaderSecret !== "string") return res.status(400).json({ error: "leaderSecret is required" });
+    const result = engine.buyTile(req.params.id, leaderSecret);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/market/buy-bridge-permit", (req, res) => {
+    const { leaderSecret } = req.body ?? {};
+    if (typeof leaderSecret !== "string") return res.status(400).json({ error: "leaderSecret is required" });
+    const result = engine.buyBridgePermit(req.params.id, leaderSecret);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/market/buy-ward", (req, res) => {
+    const { leaderSecret } = req.body ?? {};
+    if (typeof leaderSecret !== "string") return res.status(400).json({ error: "leaderSecret is required" });
+    const result = engine.buyWard(req.params.id, leaderSecret);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/market/buy-spyglass", (req, res) => {
+    const { leaderSecret } = req.body ?? {};
+    if (typeof leaderSecret !== "string") return res.status(400).json({ error: "leaderSecret is required" });
+    const result = engine.buySpyglass(req.params.id, leaderSecret);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/market/buy-herald-favor", (req, res) => {
+    const { leaderSecret } = req.body ?? {};
+    if (typeof leaderSecret !== "string") return res.status(400).json({ error: "leaderSecret is required" });
+    const result = engine.buyHeraldFavor(req.params.id, leaderSecret);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
+  router.post("/guilds/:id/market/buy-title", (req, res) => {
+    const { leaderSecret, title } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof title !== "string") {
+      return res.status(400).json({ error: "leaderSecret and title are required" });
+    }
+    const result = engine.buyTitle(req.params.id, leaderSecret, title);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  });
+
   router.get("/chat/global", (_req, res) => {
     res.json({ messages: engine.getChatHistory(GLOBAL_CHAT_ID) });
   });

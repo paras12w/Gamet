@@ -94,6 +94,11 @@ export default function App() {
 
   const inGuild = !!identity.username && !!identity.guildId;
   const spectating = !!identity.username && !identity.guildId && !!identity.spectating;
+  // The sidebar always shows exactly one of these three panes. "board" (the
+  // default/mobile map view) has no matching pane, so it falls back to
+  // "guild" - keeping the map-first mobile entry point intact while giving
+  // desktop/tablet widths a sane default instead of an empty sidebar.
+  const sidebarTab = mobileTab === "board" ? "guild" : mobileTab;
 
   let screen: React.ReactNode;
   if (!identity.username) {
@@ -118,7 +123,18 @@ export default function App() {
           </div>
           <aside className="app__sidebar">
             <Timer snapshot={snapshot} />
-            <div className={`app__pane${mobileTab === "guild" ? " app__pane--active" : ""}`}>
+            <nav className="sidebar-tabs">
+              <button type="button" className={sidebarTab === "guild" ? "active" : ""} onClick={() => setMobileTab("guild")}>
+                {inGuild ? "🏳️ Guild" : "👁️ You"}
+              </button>
+              <button type="button" className={sidebarTab === "rankings" ? "active" : ""} onClick={() => setMobileTab("rankings")}>
+                🏆 Ranks
+              </button>
+              <button type="button" className={sidebarTab === "chat" ? "active" : ""} onClick={() => setMobileTab("chat")}>
+                💬 Realm Chat
+              </button>
+            </nav>
+            <div className={`app__pane${sidebarTab === "guild" ? " app__pane--active" : ""}`}>
               {inGuild ? (
                 <>
                   <GuildBar
@@ -145,12 +161,12 @@ export default function App() {
                 </>
               )}
             </div>
-            <div className={`app__pane${mobileTab === "rankings" ? " app__pane--active" : ""}`}>
+            <div className={`app__pane${sidebarTab === "rankings" ? " app__pane--active" : ""}`}>
               <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
               <RoundLog snapshot={snapshot} />
               <HallOfFame snapshot={snapshot} />
             </div>
-            <div className={`app__pane${mobileTab === "chat" ? " app__pane--active" : ""}`}>
+            <div className={`app__pane${sidebarTab === "chat" ? " app__pane--active" : ""}`}>
               <GlobalChat chatMessages={chatMessages} username={identity.username} />
             </div>
           </aside>

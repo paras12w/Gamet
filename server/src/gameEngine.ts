@@ -160,6 +160,26 @@ export class GameEngine {
     return [...candidates];
   }
 
+  /** A bot's territory should read as a real rival, not a passive filler -
+   * so it always grabs a still-neutral castle over open land when one's in
+   * reach, and otherwise leans toward whichever candidate cell borders a
+   * living unallied guild (claiming it triggers a battle next round via
+   * detectNewBattles) rather than just growing into empty fields. */
+  private pickBotPlacement(bot: Guild, candidates: CellKey[]): CellKey {
+    const castleCandidates = candidates.filter((key) => this.grid.get(key)?.type === "castle");
+    if (castleCandidates.length > 0) return castleCandidates[Math.floor(Math.random() * castleCandidates.length)];
+
+    const borderCandidates = candidates.filter((key) =>
+      neighborsOf(key).some((n) => {
+        const owner = this.grid.get(n)?.owner;
+        return !!owner && owner !== bot.id && !this.areAllied(bot.id, owner);
+      })
+    );
+    if (borderCandidates.length > 0) return borderCandidates[Math.floor(Math.random() * borderCandidates.length)];
+
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
   /** Drives every AI-controlled guild through one round's worth of
    * decisions, using the exact same public methods a real client calls -
    * propose, scout, place tiles, propose/respond to alliances and wagers.
@@ -181,7 +201,7 @@ export class GameEngine {
       while (bot.pendingTiles > 0) {
         const candidates = this.eligiblePlacementCells(bot);
         if (candidates.length === 0) break;
-        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        const pick = this.pickBotPlacement(bot, candidates);
         const before = bot.pendingTiles;
         this.placeTile(bot.id, bot.leaderSecret, pick);
         if (bot.pendingTiles >= before) break; // placement failed - avoid looping forever
@@ -672,7 +692,7 @@ export class GameEngine {
       }
     }
     if (candidates.size === 0) return null;
-    const pick = [...candidates][Math.floor(Math.random() * candidates.size)];
+    const pick = this.pickBotPlacement(guild, [...candidates]);
     const cell = this.grid.get(pick)!;
     guild.squares.add(pick);
     this.claimCell(guild, cell);

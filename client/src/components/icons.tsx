@@ -339,7 +339,7 @@ export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w
   if (active.length === 0) {
     return (
       <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-        <circle cx="12" cy="12" r="3" fill={ROAD_COLOR} opacity="0.85" />
+        <circle cx="12" cy="12" r="1.8" fill={ROAD_COLOR} opacity="0.75" />
       </svg>
     );
   }
@@ -354,9 +354,9 @@ export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w
 
   return (
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-      <path d={d} stroke="#000" strokeOpacity="0.25" strokeWidth="8.5" strokeLinecap="round" fill="none" />
-      <path d={d} stroke={ROAD_COLOR} strokeWidth="7" strokeLinecap="round" fill="none" />
-      {active.length >= 3 && <circle cx="12" cy="12" r="4" fill={ROAD_COLOR} />}
+      <path d={d} stroke="#000" strokeOpacity="0.18" strokeWidth="4.6" strokeLinecap="round" fill="none" />
+      <path d={d} stroke={ROAD_COLOR} strokeWidth="3.4" strokeLinecap="round" fill="none" />
+      {active.length >= 3 && <circle cx="12" cy="12" r="2.2" fill={ROAD_COLOR} />}
     </svg>
   );
 }

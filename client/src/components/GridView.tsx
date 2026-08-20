@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { GameStateSnapshot, ResourceKind } from "../types";
 import {
   BanditCampIcon,
@@ -91,10 +91,68 @@ export function GridView({
   placementMode: boolean;
   onPlaceTile: (x: number, y: number) => void;
 }) {
+  const [zoom, setZoom] = useState(1);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number; dragged: boolean } | null>(null);
+
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 4;
+  const ZOOM_STEP = 0.5;
+
+  function clampZoom(next: number): number {
+    return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
+  }
+
+  function zoomBy(delta: number) {
+    setZoom((z) => clampZoom(Math.round((z + delta) * 100) / 100));
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (zoom <= 1 || e.button !== 0) return;
+    const el = viewportRef.current;
+    if (!el) return;
+    dragState.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, dragged: false };
+    el.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragState.current;
+    const el = viewportRef.current;
+    if (!drag || !el) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.dragged = true;
+    el.scrollLeft = drag.scrollLeft - dx;
+    el.scrollTop = drag.scrollTop - dy;
+  }
+
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const el = viewportRef.current;
+    if (el && el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    // Swallow the click that follows a real drag so a pan gesture never
+    // accidentally places a tile or opens a keep popup.
+    if (dragState.current?.dragged) {
+      const swallow = (ev: MouseEvent) => ev.stopPropagation();
+      el?.addEventListener("click", swallow, { capture: true, once: true });
+    }
+    dragState.current = null;
+  }
+
+  function handleWheel(e: React.WheelEvent<HTMLDivElement>) {
+    if (!e.ctrlKey && !e.metaKey) return; // trackpad pinch / ctrl+wheel only - plain scroll still pans
+    e.preventDefault();
+    zoomBy(e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP);
+  }
+
+  const wrapRef = useRef<HTMLDivElement>(null);
   const guildsById = useMemo(() => new Map(snapshot.guilds.map((g) => [g.id, g])), [snapshot.guilds]);
   const cellsByKey = useMemo(() => new Map(snapshot.cells.map((c) => [`${c.x},${c.y}`, c])), [snapshot.cells]);
   const rankedGuilds = useMemo(() => [...snapshot.guilds].sort((a, b) => b.squareCount - a.squareCount), [snapshot.guilds]);
   const [selectedKeep, setSelectedKeep] = useState<string | null>(null);
+  // The clicked cell's own on-screen box (relative to grid-view-wrap), captured
+  // at click time - needed because a percentage-of-grid calc breaks once the
+  // board can be zoomed/panned to an arbitrary scroll offset.
+  const [anchorRect, setAnchorRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
   const battleCells = useMemo(() => {
     const set = new Set<string>();
@@ -112,26 +170,52 @@ export function GridView({
   const selectedRank = selectedOwner ? rankedGuilds.findIndex((g) => g.id === selectedOwner.id) + 1 : 0;
 
   let popupStyle: React.CSSProperties | undefined;
-  if (selectedCell) {
-    const gridSize = snapshot.gridSize;
-    // Board is laid out row=x, col=y (server fills the grid x-outer/y-inner,
-    // which CSS grid auto-placement fills row-major) - so x drives the
-    // vertical position on screen and y drives the horizontal.
-    const topPct = Math.min(88, Math.max(12, ((selectedCell.x + 0.5) / gridSize) * 100));
-    const cellLeftPct = (selectedCell.y / gridSize) * 100;
-    const cellRightPct = ((selectedCell.y + 1) / gridSize) * 100;
-    const placeOnRight = cellLeftPct < 50;
+  if (selectedCell && anchorRect) {
+    const wrapWidth = wrapRef.current?.clientWidth ?? anchorRect.left * 2;
+    const wrapHeight = wrapRef.current?.clientHeight ?? anchorRect.top * 2;
+    const placeOnRight = anchorRect.left < wrapWidth / 2;
+    const top = Math.min(wrapHeight - 20, Math.max(20, anchorRect.top + anchorRect.height / 2));
     popupStyle = placeOnRight
-      ? { left: `calc(${cellRightPct}% + 10px)`, top: `${topPct}%` }
-      : { right: `calc(${100 - cellLeftPct}% + 10px)`, top: `${topPct}%` };
+      ? { left: `${anchorRect.left + anchorRect.width + 10}px`, top: `${top}px` }
+      : { right: `${wrapWidth - anchorRect.left + 10}px`, top: `${top}px` };
+  }
+
+  function closePopup() {
+    setSelectedKeep(null);
+    setAnchorRect(null);
   }
 
   return (
-    <div className="grid-view-wrap">
+    <div className="grid-view-wrap" ref={wrapRef}>
       {placementMode && <div className="placement-hint">🎯 Choose an open field next to your territory to place a banked tile.</div>}
+      <div className="grid-zoom-controls">
+        <button type="button" onClick={() => zoomBy(-ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="Zoom out">
+          −
+        </button>
+        <button type="button" onClick={() => setZoom(1)} disabled={zoom === 1} aria-label="Reset zoom">
+          {Math.round(zoom * 100)}%
+        </button>
+        <button type="button" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="Zoom in">
+          +
+        </button>
+      </div>
+      <div
+        ref={viewportRef}
+        className={`grid-zoom-viewport${zoom > 1 ? " grid-zoom-viewport--zoomed" : ""}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onWheel={handleWheel}
+      >
       <div
         className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}${placementMode ? " grid-view--placing" : ""}`}
-        style={{ gridTemplateColumns: `repeat(${snapshot.gridSize}, 1fr)`, gridTemplateRows: `repeat(${snapshot.gridSize}, 1fr)` }}
+        style={{
+          gridTemplateColumns: `repeat(${snapshot.gridSize}, 1fr)`,
+          gridTemplateRows: `repeat(${snapshot.gridSize}, 1fr)`,
+          transform: `scale(${zoom})`,
+          transformOrigin: "0 0",
+        }}
       >
         {snapshot.cells.map((cell) => {
           const key = `${cell.x},${cell.y}`;
@@ -168,9 +252,22 @@ export function GridView({
 
           const clickable = isEligible || isKeep || isHq;
 
-          function handleClick() {
-            if (isEligible) onPlaceTile(cell.x, cell.y);
-            else if (isKeep || isHq) setSelectedKeep(key);
+          function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+            if (isEligible) {
+              onPlaceTile(cell.x, cell.y);
+            } else if (isKeep || isHq) {
+              const wrapRect = wrapRef.current?.getBoundingClientRect();
+              const cellRect = e.currentTarget.getBoundingClientRect();
+              if (wrapRect) {
+                setAnchorRect({
+                  left: cellRect.left - wrapRect.left,
+                  top: cellRect.top - wrapRect.top,
+                  width: cellRect.width,
+                  height: cellRect.height,
+                });
+              }
+              setSelectedKeep(key);
+            }
           }
 
           return (
@@ -219,15 +316,21 @@ export function GridView({
 
               {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
               {cell.type === "empty" && owner && <KnightIcon color={owner.color} size={17} />}
-              {isEligible && <span className="grid-cell__place-marker">+</span>}
+              {isEligible && (
+                <svg className="grid-cell__place-marker" width="42%" height="42%" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="10" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
+                  <rect x="3" y="10" width="18" height="4" rx="1.5" fill="currentColor" />
+                </svg>
+              )}
             </div>
           );
         })}
       </div>
+      </div>
 
       {selectedCell && selectedIsHq && selectedOwner && (
         <div className="keep-info keep-info--floating" style={popupStyle}>
-          <button className="keep-info__close" onClick={() => setSelectedKeep(null)} aria-label="Close">
+          <button className="keep-info__close" onClick={closePopup} aria-label="Close">
             ×
           </button>
           <div className="keep-info__badge">
@@ -250,7 +353,7 @@ export function GridView({
 
       {selectedCell && !selectedIsHq && (
         <div className="keep-info keep-info--floating" style={popupStyle}>
-          <button className="keep-info__close" onClick={() => setSelectedKeep(null)} aria-label="Close">
+          <button className="keep-info__close" onClick={closePopup} aria-label="Close">
             ×
           </button>
           <div className="keep-info__badge">

@@ -224,6 +224,54 @@ h1, h2, h3 {
   position: relative;
 }
 
+.grid-zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.grid-zoom-controls button {
+  min-width: 34px;
+  padding: 5px 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.grid-zoom-viewport {
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: auto;
+  border-radius: 2px;
+  touch-action: pan-x pan-y;
+}
+
+.grid-zoom-viewport--zoomed {
+  cursor: grab;
+}
+
+.grid-zoom-viewport--zoomed:active {
+  cursor: grabbing;
+}
+
+.grid-zoom-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.grid-zoom-viewport::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+}
+
 .grid-view {
   display: grid;
   gap: 1px;
@@ -292,12 +340,13 @@ h1, h2, h3 {
 }
 
 .grid-cell__place-marker {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 2;
   color: var(--gold-bright);
-  font-size: 1.1rem;
-  font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
   pointer-events: none;
 }
 
@@ -466,12 +515,57 @@ h1, h2, h3 {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  max-height: calc(100vh - 110px);
 }
 
-.app__pane {
+/* Exactly one of these shows at a time (see .sidebar-tabs) - keeps the
+   right-hand column short enough to fit a single screen instead of the
+   whole guild/ranks/chat stack piling up at once. */
+.app__sidebar > .app__pane {
+  display: none;
+  min-height: 0;
+}
+
+.app__sidebar > .app__pane.app__pane--active {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sidebar-tabs {
+  display: flex;
+  gap: 4px;
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.sidebar-tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  box-shadow: none;
+  text-shadow: none;
+  border-radius: 4px;
+  color: var(--text-dim);
+  padding: 8px 4px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-tabs button:hover:not(:disabled) {
+  background: rgba(212, 168, 67, 0.08);
+}
+
+.sidebar-tabs button.active {
+  color: var(--gold-bright);
+  background: rgba(212, 168, 67, 0.14);
 }
 
 /* ---------- Panels ---------- */
@@ -1879,14 +1973,12 @@ button:disabled {
     display: block;
   }
 
-  .app__sidebar > .app__pane {
-    display: none;
+  .app__sidebar {
+    max-height: none;
   }
 
-  .app__sidebar > .app__pane.app__pane--active {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+  .sidebar-tabs {
+    display: none;
   }
 
   .mobile-tabbar {

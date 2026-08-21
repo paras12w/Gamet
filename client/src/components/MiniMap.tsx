@@ -21,7 +21,12 @@ export function MiniMap({ snapshot, myGuildId }: { snapshot: GameStateSnapshot; 
       </div>
       <div
         className="minimap"
-        style={{ gridTemplateColumns: `repeat(${snapshot.gridSize}, 1fr)`, gridTemplateRows: `repeat(${snapshot.gridSize}, 1fr)` }}
+        // minmax(0, 1fr) - see GridView.tsx's grid for why a bare 1fr can
+        // silently overflow a narrow container.
+        style={{
+          gridTemplateColumns: `repeat(${snapshot.gridSize}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${snapshot.gridSize}, minmax(0, 1fr))`,
+        }}
       >
         {snapshot.cells.map((cell) => {
           const key = `${cell.x},${cell.y}`;

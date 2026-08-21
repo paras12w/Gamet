@@ -13,5 +13,4 @@ export const ACHIEVEMENT_INFO: Record<string, AchievementInfo> = {
   win_streak_5: { name: "Unstoppable", icon: "🔥", description: "Won 5 rounds in a row." },
   sector_specialist: { name: "Sector Specialist", icon: "🎯", description: "Won 3 calls in the same kingdom sector." },
   market_patron: { name: "Market Patron", icon: "🏪", description: "Made your guild's first purchase from the Market." },
-  ward_saved: { name: "Held the Line", icon: "🛡️", description: "A Palisade Ward absorbed a lost battle for the first time." },
 };

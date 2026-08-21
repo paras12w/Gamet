@@ -19,10 +19,10 @@ import { ACHIEVEMENTS, type AchievementKey } from "./achievements.js";
 import {
   BOT_ALLIANCE_ACCEPT_CHANCE,
   BOT_ALLIANCE_PROPOSE_CHANCE,
+  BOT_BRIDGE_CHANCE,
   BOT_COUNT,
   BOT_GUILD_NAMES,
   BOT_MARKET_TILE_CHANCE,
-  BOT_MARKET_WARD_CHANCE,
   BOT_SCOUT_CHANCE,
   BOT_TICKER_POOL,
   BOT_USERNAMES,
@@ -159,10 +159,23 @@ export class GameEngine {
     for (const owned of guild.squares) {
       for (const n of neighborsOf(owned)) {
         const cell = this.grid.get(n);
-        // A river cell is only eligible at a bridge crossing - the toll is
-        // charged in placeTile, so this is a deliberate-placement-only
-        // option (the passive castle-buff auto-expansion never crosses).
-        if (cell && cell.owner === null && (!cell.river || cell.riverCrossing)) candidates.add(n);
+        // River tiles are never a tile-bank placement option - crossing one
+        // now always costs silver directly via buyBridgeTile instead.
+        if (cell && cell.owner === null && !cell.river) candidates.add(n);
+      }
+    }
+    return [...candidates];
+  }
+
+  /** Every unclaimed river tile bordering the guild's own territory - each
+   * one is a candidate a leader (or bot) can buy outright as a bridge tile
+   * for BRIDGE_TILE_COST silver via buyBridgeTile. */
+  private eligibleBridgeCells(guild: Guild): CellKey[] {
+    const candidates = new Set<CellKey>();
+    for (const owned of guild.squares) {
+      for (const n of neighborsOf(owned)) {
+        const cell = this.grid.get(n);
+        if (cell && cell.river && cell.owner === null) candidates.add(n);
       }
     }
     return [...candidates];
@@ -172,21 +185,12 @@ export class GameEngine {
    * so it always grabs a still-neutral castle over open land when one's in
    * reach, and otherwise leans toward whichever candidate cell borders a
    * living unallied guild (claiming it triggers a battle next round via
-   * detectNewBattles) rather than just growing into empty fields. Bridge
-   * crossings the bot can't afford the toll for are dropped from
-   * consideration first, so a broke bot doesn't waste its whole turn on a
-   * placement that's just going to fail. */
+   * detectNewBattles) rather than just growing into empty fields. */
   private pickBotPlacement(bot: Guild, candidates: CellKey[]): CellKey {
-    const affordable = candidates.filter((key) => {
-      const cell = this.grid.get(key);
-      return !cell?.riverCrossing || bot.bridgeCredits > 0 || bot.tokens >= CONFIG.BRIDGE_TOLL_SILVER;
-    });
-    const pool = affordable.length > 0 ? affordable : candidates;
-
-    const castleCandidates = pool.filter((key) => this.grid.get(key)?.type === "castle");
+    const castleCandidates = candidates.filter((key) => this.grid.get(key)?.type === "castle");
     if (castleCandidates.length > 0) return castleCandidates[Math.floor(Math.random() * castleCandidates.length)];
 
-    const borderCandidates = pool.filter((key) =>
+    const borderCandidates = candidates.filter((key) =>
       neighborsOf(key).some((n) => {
         const owner = this.grid.get(n)?.owner;
         return !!owner && owner !== bot.id && !this.areAllied(bot.id, owner);
@@ -194,7 +198,7 @@ export class GameEngine {
     );
     if (borderCandidates.length > 0) return borderCandidates[Math.floor(Math.random() * borderCandidates.length)];
 
-    return pool[Math.floor(Math.random() * pool.length)];
+    return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
   /** Drives every AI-controlled guild through one round's worth of
@@ -255,15 +259,23 @@ export class GameEngine {
       }
 
       // Market: only spend down to a reserve, so a bot never trades away
-      // silver it needs for scouting/bridging just to buy a ward.
-      if (bot.wards < CONFIG.MAX_WARDS && bot.tokens >= CONFIG.WARD_COST * 3 && Math.random() < BOT_MARKET_WARD_CHANCE) {
-        this.buyWard(bot.id, bot.leaderSecret);
-      } else if (
+      // silver it needs for scouting/bridging just to buy a field.
+      if (
         bot.pendingTiles < CONFIG.MAX_PENDING_TILES &&
         bot.tokens >= (CONFIG.BUY_TILE_BASE_COST + bot.tilePurchasesThisSession * CONFIG.BUY_TILE_COST_STEP) * 3 &&
         Math.random() < BOT_MARKET_TILE_CHANCE
       ) {
         this.buyTile(bot.id, bot.leaderSecret);
+      }
+
+      // Bots cross rivers too, at a modest pace, whenever one borders their
+      // territory and they can spare the silver.
+      if (bot.tokens >= CONFIG.BRIDGE_TILE_COST * 3 && Math.random() < BOT_BRIDGE_CHANCE) {
+        const bridgeCandidates = this.eligibleBridgeCells(bot);
+        if (bridgeCandidates.length > 0) {
+          const pick = bridgeCandidates[Math.floor(Math.random() * bridgeCandidates.length)];
+          this.buyBridgeTile(bot.id, bot.leaderSecret, pick);
+        }
       }
     }
   }
@@ -287,7 +299,6 @@ export class GameEngine {
           owner: null,
           resourceKind: isCastle ? randomResourceKind() : undefined,
           river: !!riverCell || undefined,
-          riverCrossing: riverCell?.crossing || undefined,
           riverFlowsAlongX: riverCell?.flowsAlongX || undefined,
         });
       }
@@ -333,8 +344,6 @@ export class GameEngine {
         recentWinSectors: [],
         isBot: !!row.is_bot,
         title: row.title,
-        wards: 0,
-        bridgeCredits: 0,
         tilePurchasesThisSession: 0,
       };
       this.guilds.set(guild.id, guild);
@@ -422,8 +431,6 @@ export class GameEngine {
       recentWinSectors: [],
       isBot,
       title: "",
-      wards: 0,
-      bridgeCredits: 0,
       tilePurchasesThisSession: 0,
     };
     this.guilds.set(guild.id, guild);
@@ -867,24 +874,40 @@ export class GameEngine {
     const cell = this.grid.get(key);
     if (!cell) return { ok: false, error: "That field doesn't exist" };
     if (cell.owner !== null) return { ok: false, error: "That field is already claimed" };
-    if (cell.river && !cell.riverCrossing) return { ok: false, error: "You can't settle a river" };
+    if (cell.river) return { ok: false, error: "You can't settle a river - buy a bridge tile instead" };
     const adjacent = neighborsOf(key).some((n) => this.grid.get(n)?.owner === guild.id);
     if (!adjacent) return { ok: false, error: "Must place next to your existing territory" };
-    if (cell.riverCrossing) {
-      if (guild.bridgeCredits > 0) {
-        guild.bridgeCredits -= 1;
-        this.postSystemMessage(guild.id, `🌉 Used a Bridge Permit to cross toll-free.`);
-      } else if (guild.tokens < CONFIG.BRIDGE_TOLL_SILVER) {
-        return { ok: false, error: `Building a bridge here costs ${CONFIG.BRIDGE_TOLL_SILVER} silver - you don't have enough` };
-      } else {
-        guild.tokens -= CONFIG.BRIDGE_TOLL_SILVER;
-        updateGuildTokens(guild.id, guild.tokens);
-        this.postSystemMessage(guild.id, `🌉 Paid ${CONFIG.BRIDGE_TOLL_SILVER} silver to bridge the river.`);
-      }
-    }
     guild.squares.add(key);
     this.claimCell(guild, cell);
     guild.pendingTiles -= 1;
+    this.emitUpdate();
+    return { ok: true };
+  }
+
+  /** Buys a single river tile outright as a bridge, paid directly in
+   * silver (not from the tile bank) - any unclaimed river tile bordering
+   * the guild's existing territory is eligible. A river more than one tile
+   * wide needs one purchase per lane. Can be called any time, not just
+   * during a round. */
+  buyBridgeTile(guildId: string, leaderSecret: string, key: CellKey): { ok: true } | { ok: false; error: string } {
+    const guild = this.guilds.get(guildId);
+    if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
+    if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can spend the treasury" };
+    const cell = this.grid.get(key);
+    if (!cell) return { ok: false, error: "That field doesn't exist" };
+    if (!cell.river) return { ok: false, error: "That's not a river tile" };
+    if (cell.owner !== null) return { ok: false, error: "That crossing is already bridged" };
+    const adjacent = neighborsOf(key).some((n) => this.grid.get(n)?.owner === guild.id);
+    if (!adjacent) return { ok: false, error: "Must bridge next to your existing territory" };
+    if (guild.tokens < CONFIG.BRIDGE_TILE_COST) {
+      return { ok: false, error: `Not enough silver - a bridge tile costs ${CONFIG.BRIDGE_TILE_COST}` };
+    }
+    guild.tokens -= CONFIG.BRIDGE_TILE_COST;
+    updateGuildTokens(guild.id, guild.tokens);
+    guild.squares.add(key);
+    cell.owner = guild.id;
+    this.postSystemMessage(guild.id, `🌉 Built a bridge tile for ${CONFIG.BRIDGE_TILE_COST} silver.`);
+    this.awardAchievement(guild, "market_patron");
     this.emitUpdate();
     return { ok: true };
   }
@@ -969,33 +992,20 @@ export class GameEngine {
       outcomeA = aWins ? "battle_won" : pa === null ? "battle_forfeit" : "battle_lost";
       outcomeB = aWins ? (pb === null ? "battle_forfeit" : "battle_lost") : "battle_won";
 
-      // A Palisade Ward absorbs the loss outright: no ground changes hands
-      // and the streak resets, but the winner's call still earns its usual
-      // tile/silver reward - the ward blunts the attack, it doesn't punish
-      // a good call.
-      const warded = loser.wards > 0;
-      if (warded) {
-        loser.wards -= 1;
-        this.postSystemMessage(loser.id, `🛡️ A Palisade Ward absorbed ${winner.name}'s attack - our border held.`);
-        this.postSystemMessage(winner.id, `🛡️ ${loser.name}'s Palisade Ward blunted our advance - no ground gained.`);
-        this.awardAchievement(loser, "ward_saved");
-        if (loser.id === a.id) outcomeA = "battle_warded";
-        else outcomeB = "battle_warded";
-      } else {
-        loser.squares.delete(loserCell);
-        winner.squares.add(loserCell);
-        const capturedCell = this.grid.get(loserCell);
-        if (capturedCell) capturedCell.owner = winner.id;
-      }
+      loser.squares.delete(loserCell);
+      winner.squares.add(loserCell);
+      const capturedCell = this.grid.get(loserCell);
+      if (capturedCell) capturedCell.owner = winner.id;
+
       const winnerSector = this.applySectorBonus(winner);
       const winnerTileCount = tileCountFor(winner.id) + winnerSector.tileBonus;
       const bonusTileOutcome = this.grantTile(winner, winnerTileCount);
 
-      winner.streaks[loser.id] = warded ? 0 : (winner.streaks[loser.id] ?? 0) + 1;
+      winner.streaks[loser.id] = (winner.streaks[loser.id] ?? 0) + 1;
       loser.streaks[winner.id] = 0;
 
       let takeover = false;
-      if (!warded && winner.streaks[loser.id] >= CONFIG.TAKEOVER_STREAK) {
+      if (winner.streaks[loser.id] >= CONFIG.TAKEOVER_STREAK) {
         takeover = true;
         this.doTakeover(winner, loser);
       }
@@ -1280,38 +1290,6 @@ export class GameEngine {
     return { ok: true };
   }
 
-  /** Buy one free river crossing - the next bridge toll this guild would
-   * pay is waived instead. */
-  buyBridgePermit(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
-    const guild = this.requireLeader(guildId, leaderSecret);
-    if (!("id" in guild)) return guild;
-    if (guild.tokens < CONFIG.BRIDGE_PERMIT_COST) return { ok: false, error: `Not enough silver - a Bridge Permit costs ${CONFIG.BRIDGE_PERMIT_COST}` };
-    guild.tokens -= CONFIG.BRIDGE_PERMIT_COST;
-    updateGuildTokens(guild.id, guild.tokens);
-    guild.bridgeCredits += 1;
-    this.postSystemMessage(guild.id, `🌉 Bought a Bridge Permit - your next river crossing is toll-free.`);
-    this.awardAchievement(guild, "market_patron");
-    this.emitUpdate();
-    return { ok: true };
-  }
-
-  /** Buy a Palisade Ward: absorbs this guild's next lost battle outright -
-   * the border holds and the streak resets instead of the cell changing
-   * hands. Capped so it can't be stockpiled into invincibility. */
-  buyWard(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
-    const guild = this.requireLeader(guildId, leaderSecret);
-    if (!("id" in guild)) return guild;
-    if (guild.wards >= CONFIG.MAX_WARDS) return { ok: false, error: `You already hold the maximum of ${CONFIG.MAX_WARDS} wards` };
-    if (guild.tokens < CONFIG.WARD_COST) return { ok: false, error: `Not enough silver - a Palisade Ward costs ${CONFIG.WARD_COST}` };
-    guild.tokens -= CONFIG.WARD_COST;
-    updateGuildTokens(guild.id, guild.tokens);
-    guild.wards += 1;
-    this.postSystemMessage(guild.id, `🛡️ Bought a Palisade Ward - your next lost battle will be absorbed instead of costing ground.`);
-    this.awardAchievement(guild, "market_patron");
-    this.emitUpdate();
-    return { ok: true };
-  }
-
   /** Buy a Spyglass: scouts every living rival with a locked-in call this
    * round in one purchase, instead of paying per guild. */
   buySpyglass(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
@@ -1505,8 +1483,6 @@ export class GameEngine {
       achievements: [...g.achievements],
       sectorWins: g.sectorWins,
       title: g.title,
-      wards: g.wards,
-      bridgeCredits: g.bridgeCredits,
       tilePurchasesThisSession: g.tilePurchasesThisSession,
     };
   }

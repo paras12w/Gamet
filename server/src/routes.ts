@@ -184,18 +184,12 @@ export function buildRouter(engine: GameEngine): Router {
     res.json({ ok: true });
   });
 
-  router.post("/guilds/:id/market/buy-bridge-permit", (req, res) => {
-    const { leaderSecret } = req.body ?? {};
-    if (typeof leaderSecret !== "string") return res.status(400).json({ error: "leaderSecret is required" });
-    const result = engine.buyBridgePermit(req.params.id, leaderSecret);
-    if (!result.ok) return res.status(400).json({ error: result.error });
-    res.json({ ok: true });
-  });
-
-  router.post("/guilds/:id/market/buy-ward", (req, res) => {
-    const { leaderSecret } = req.body ?? {};
-    if (typeof leaderSecret !== "string") return res.status(400).json({ error: "leaderSecret is required" });
-    const result = engine.buyWard(req.params.id, leaderSecret);
+  router.post("/guilds/:id/bridge-tile", (req, res) => {
+    const { leaderSecret, x, y } = req.body ?? {};
+    if (typeof leaderSecret !== "string" || typeof x !== "number" || typeof y !== "number") {
+      return res.status(400).json({ error: "leaderSecret, x, and y are required" });
+    }
+    const result = engine.buyBridgeTile(req.params.id, leaderSecret, cellKey(x, y));
     if (!result.ok) return res.status(400).json({ error: result.error });
     res.json({ ok: true });
   });

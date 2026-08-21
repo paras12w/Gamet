@@ -8,7 +8,6 @@ const OUTCOME_LABEL: Record<RoundResultEntry["outcome"], string> = {
   battle_lost: "⚔️ lost the duel",
   battle_tied: "⚔️ duel tied — no ground taken",
   battle_forfeit: "⚔️ forfeited the duel (no call)",
-  battle_warded: "🛡️ lost the duel, but a Palisade Ward held the border",
   no_proposal: "sat out this round",
   takeover_win: "👑 CONQUEST — the rival guild falls!",
   takeover_lost: "💀 conquered by a rival guild",
@@ -58,11 +57,6 @@ const FLAVOR: Partial<Record<RoundResultEntry["outcome"], string[]>> = {
     "{g}'s line buckles and gives ground.",
     "{g}'s outriders are driven back from the border.",
     "{g} loses the field after a hard-fought skirmish.",
-  ],
-  battle_warded: [
-    "{g}'s palisade splinters the charge - the line holds.",
-    "{g}'s ward-stones flare and the attack breaks against them.",
-    "{g}'s border earthworks absorb the blow. Not an inch given.",
   ],
   takeover_win: [
     "{g}'s banners rise over the rival's shattered gates. Total conquest.",

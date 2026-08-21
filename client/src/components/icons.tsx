@@ -26,9 +26,15 @@ export function RiverTile({ seed = 0, vertical = false, crossing = false }: { se
     return `M${x} 0 Q${x - amp} 4 ${x} 8 T${x} 16 T${x} 24`;
   }
   return (
-    <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-      <rect width="24" height="24" fill="#2c5270" />
-      <rect width="24" height="24" fill="#1f3f58" opacity="0.35" />
+    <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: "-0.5px" }} aria-hidden="true">
+      {/* Rect bleeds 1 unit past every edge of the viewBox (paired with the
+          -0.5px inset above) so a hairline of the grass background can never
+          show through at the tile boundary if the browser rounds this
+          cell's box to a slightly different pixel width than its neighbor's -
+          the two river tiles' water then always overlaps by a hair instead
+          of leaving a gap. */}
+      <rect x="-1" y="-1" width="26" height="26" fill="#2c5270" />
+      <rect x="-1" y="-1" width="26" height="26" fill="#1f3f58" opacity="0.35" />
       {vertical ? (
         <>
           <path d={vWave(6 + offset)} fill="none" stroke="#4f80a3" strokeWidth="1.1" opacity="0.65" />
@@ -315,21 +321,21 @@ export function BushIcon({ size = 11, seed = 0 }: { size?: number; seed?: number
   );
 }
 
-/** A standing soldier: spear + shield, tunic colored per guild. */
-export function KnightIcon({ color, size = 18 }: { color: string; size?: number }) {
+/** A wandering villager: no weapon or armor, just a hood and tunic colored
+ * per guild - flavor for a settled field, not a soldier standing watch. Legs
+ * spread in a walking stride; the actual "walking" motion is a CSS animation
+ * applied to the wrapping element (see .villager-wrap), not this SVG. */
+export function VillagerIcon({ color, size = 16 }: { color: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <ellipse cx="12" cy="22" rx="6" ry="1.2" fill="#000" opacity="0.2" />
-      <line x1="18.5" y1="2" x2="18.5" y2="19" stroke="#6b5537" strokeWidth="1.1" strokeLinecap="round" />
-      <path d="M18.5 1 L20.5 4.5 L16.5 4.5 Z" fill="#a8a8a0" stroke="#4a453a" strokeWidth="0.4" />
-      <rect x="9.5" y="17" width="2" height="5" fill="#3a2e1a" />
-      <rect x="12.5" y="17" width="2" height="5" fill="#3a2e1a" />
-      <path d="M8.5 10 H15.5 V17.5 C15.5 18.5 14.5 19 12 19 C9.5 19 8.5 18.5 8.5 17.5 Z" fill={color} stroke="#000" strokeOpacity="0.3" strokeWidth="0.4" />
-      <rect x="9" y="14.5" width="6" height="1.4" fill="#00000022" />
-      <circle cx="12" cy="6.5" r="3" fill="#e0b28a" />
-      <path d="M8.7 6.2 A3.3 3.3 0 0 1 15.3 6.2 L15.3 5 C15.3 3.6 13.8 2.6 12 2.6 C10.2 2.6 8.7 3.6 8.7 5 Z" fill="#8a8577" stroke="#4a453a" strokeWidth="0.4" />
-      <ellipse cx="5.8" cy="12.5" rx="2.3" ry="3.1" fill={color} stroke="#1c130a" strokeOpacity="0.4" strokeWidth="0.5" />
-      <line x1="5.8" y1="10" x2="5.8" y2="15" stroke="#e8dfc4" strokeOpacity="0.6" strokeWidth="0.5" />
+      <ellipse cx="12" cy="21.5" rx="5" ry="1" fill="#000" opacity="0.18" />
+      <path d="M9 17.5 L7.5 22" stroke="#5c4a2e" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M14 17.5 L16 21.5" stroke="#5c4a2e" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M9 9.5 H15 L14.2 18 C14.1 18.8 13.2 19.3 12 19.3 C10.8 19.3 9.9 18.8 9.8 18 Z" fill={color} stroke="#000" strokeOpacity="0.3" strokeWidth="0.4" />
+      <path d="M8.6 10.5 L6.8 14.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M15.4 10.5 L17 13.8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="6.6" r="2.7" fill="#e0b28a" />
+      <path d="M8.9 6.8 A3.1 3.1 0 0 1 15.1 6.8 L14.6 5.4 C14.2 4.2 13.2 3.6 12 3.6 C10.8 3.6 9.8 4.2 9.4 5.4 Z" fill="#6b4a2a" opacity="0.85" />
     </svg>
   );
 }
@@ -371,25 +377,38 @@ export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: s
  * CENTER of the tile toward each connected edge (not a full-half-tile
  * fill flush to the border), so it reads as an actual path/trail rather
  * than a solid block, and only an isolated field (no connections) gets a
- * small dot instead. */
-export function RoadTile({ n, s, e, w }: { n: boolean; s: boolean; e: boolean; w: boolean }) {
+ * small dot instead. A worn-dirt texture (lighter trodden core + a few
+ * darker pebble speckles, seeded per-tile) replaces the old flat single
+ * color so it reads as an actual path rather than a paint swatch. Every
+ * edge-reaching rect (and the whole isolated-dot viewBox) bleeds 1 unit
+ * past its nominal boundary, paired with a -0.5px CSS inset on the SVG
+ * itself - the same overscan trick RiverTile uses - so two connected
+ * tiles' ribbons always overlap by a hair instead of a subpixel grid-track
+ * rounding difference leaving a hairline of grass showing through. */
+export function RoadTile({ n, s, e, w, seed = 0 }: { n: boolean; s: boolean; e: boolean; w: boolean; seed?: number }) {
   const active = n || s || e || w;
+  const jitter = seed % 5;
 
   if (!active) {
     return (
-      <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-        <circle cx="12" cy="12" r="3" fill={ROAD_COLOR} opacity="0.8" />
+      <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: "-0.5px" }} aria-hidden="true">
+        <circle cx="12" cy="12" r="3.4" fill={ROAD_COLOR} opacity="0.85" />
+        <circle cx="12" cy="12" r="3.4" fill="none" stroke="#5c4a2e" strokeWidth="0.4" opacity="0.4" />
       </svg>
     );
   }
 
   return (
-    <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-      {n && <rect x="6" y="0" width="12" height="13" fill={ROAD_COLOR} />}
-      {s && <rect x="6" y="11" width="12" height="13" fill={ROAD_COLOR} />}
-      {e && <rect x="11" y="6" width="13" height="12" fill={ROAD_COLOR} />}
-      {w && <rect x="0" y="6" width="13" height="12" fill={ROAD_COLOR} />}
+    <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: "-0.5px" }} aria-hidden="true">
+      {n && <rect x="6" y="-1" width="12" height="14" fill={ROAD_COLOR} />}
+      {s && <rect x="6" y="11" width="12" height="14" fill={ROAD_COLOR} />}
+      {e && <rect x="11" y="6" width="14" height="12" fill={ROAD_COLOR} />}
+      {w && <rect x="-1" y="6" width="14" height="12" fill={ROAD_COLOR} />}
       <rect x="6" y="6" width="12" height="12" fill={ROAD_COLOR} />
+      <rect x="8" y="8" width="8" height="8" fill="#8a7050" opacity="0.3" />
+      <circle cx={9 + jitter * 0.5} cy={15 - jitter * 0.4} r="0.7" fill="#4a3a24" opacity="0.5" />
+      <circle cx={15 - jitter * 0.5} cy={9 + jitter * 0.4} r="0.6" fill="#4a3a24" opacity="0.4" />
+      <circle cx={12 + jitter * 0.3} cy={12 - jitter * 0.3} r="0.5" fill="#4a3a24" opacity="0.4" />
     </svg>
   );
 }

@@ -53,7 +53,6 @@ export function useToasts(
           if (r.outcome === "expanded") playSound("expand");
           else if (r.outcome === "battle_won") playSound("battleWin");
           else if (r.outcome === "battle_lost" || r.outcome === "battle_forfeit" || r.outcome === "takeover_lost") playSound("battleLose");
-          else if (r.outcome === "battle_warded") playSound("battleWin");
 
           if (r.topCaller && r.tileOutcome) {
             fresh.push({

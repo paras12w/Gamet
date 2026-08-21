@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Identity } from "./types";
-import { placeTile } from "./api";
+import { buyBridgeTile, placeTile } from "./api";
+import { bandWord } from "./lib/warband";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { useToasts } from "./hooks/useToasts";
 import { useSound } from "./hooks/useSound";
@@ -57,6 +58,16 @@ export default function App() {
     }
   }
 
+  async function handleBuyBridge(x: number, y: number) {
+    if (!identity.guildId || !identity.leaderSecret) return;
+    try {
+      await buyBridgeTile(identity.guildId, identity.leaderSecret, x, y);
+      play("click");
+    } catch {
+      play("error");
+    }
+  }
+
   function openGuildMenu(tab?: GuildMenuTab) {
     setGuildMenuTab(tab ?? "overview");
     setGuildMenuOpen(true);
@@ -100,6 +111,7 @@ export default function App() {
   }, [chatMessages]);
 
   const inGuild = !!identity.username && !!identity.guildId;
+  const myGuild = snapshot?.guilds.find((g) => g.id === identity.guildId);
   const spectating = !!identity.username && !identity.guildId && !!identity.spectating;
   // The sidebar always shows exactly one of these three panes. "board" (the
   // default/mobile map view) has no matching pane, so it falls back to
@@ -132,13 +144,19 @@ export default function App() {
         {rulesModalOpen && <RulesModal onClose={() => setRulesModalOpen(false)} />}
         <main className="app__main">
           <div className={`app__board-pane${mobileTab === "board" ? " app__pane--active" : ""}`}>
-            <GridView snapshot={snapshot} myGuildId={identity.guildId} placementMode={placementMode} onPlaceTile={handlePlaceTile} />
+            <GridView
+              snapshot={snapshot}
+              myGuildId={identity.guildId}
+              placementMode={placementMode}
+              onPlaceTile={handlePlaceTile}
+              onBuyBridge={handleBuyBridge}
+            />
           </div>
           <aside className="app__sidebar">
             <Timer snapshot={snapshot} />
             <nav className="sidebar-tabs">
               <button type="button" className={sidebarTab === "guild" ? "active" : ""} onClick={() => setMobileTab("guild")}>
-                {inGuild ? "🏳️ Guild" : "👁️ You"}
+                {inGuild ? `🏳️ ${bandWord(myGuild?.members.length ?? 1)}` : "👁️ You"}
               </button>
               <button type="button" className={sidebarTab === "rankings" ? "active" : ""} onClick={() => setMobileTab("rankings")}>
                 🏆 Ranks

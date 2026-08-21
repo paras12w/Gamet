@@ -5,6 +5,7 @@ import { FlagBadge } from "./icons";
 import { soundEngine } from "../lib/sound";
 import { formatCoins } from "../lib/coins";
 import { SECTOR_INFO } from "../lib/sectors";
+import { bandWord } from "../lib/warband";
 
 export const MAX_PENDING_TILES = 5;
 
@@ -59,11 +60,9 @@ export function GuildBar({
           </span>
           <span className="guild-bar__meta">
             #{rank} · {guild.squareCount} fields · {formatCoins(guild.tokens)}
-            {guild.wards > 0 ? ` · 🛡️×${guild.wards}` : ""}
-            {guild.bridgeCredits > 0 ? ` · 🌉×${guild.bridgeCredits}` : ""}
           </span>
         </span>
-        <span className="guild-bar__menu-hint">Guild Menu ▸</span>
+        <span className="guild-bar__menu-hint">{bandWord(guild.members.length)} Menu ▸</span>
       </button>
 
       <div className="guild-bar__actions">

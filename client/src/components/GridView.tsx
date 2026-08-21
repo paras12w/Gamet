@@ -7,7 +7,6 @@ import {
   ExchangeIcon,
   FlagBadge,
   FoundryIcon,
-  KnightIcon,
   LumberCampIcon,
   MineIcon,
   NeutralCastleIcon,
@@ -18,13 +17,14 @@ import {
   RuinsIcon,
   TreeIcon,
   VaultIcon,
+  VillagerIcon,
   WatchtowerIcon,
 } from "./icons";
 import { formatCoins } from "../lib/coins";
 
-// Mirrors server/src/config.ts CONFIG.BRIDGE_TOLL_SILVER - display only,
-// same pattern as GuildBar's MAX_PENDING_TILES mirror.
-const BRIDGE_TOLL_SILVER = 6;
+// Mirrors server/src/config.ts CONFIG.BRIDGE_TILE_COST - display only, same
+// pattern as GuildBar's MAX_PENDING_TILES mirror.
+const BRIDGE_TILE_COST = 5;
 
 function hash(x: number, y: number): number {
   const h = (x * 374761393 + y * 668265263) ^ (x << 13);
@@ -89,11 +89,13 @@ export function GridView({
   myGuildId,
   placementMode,
   onPlaceTile,
+  onBuyBridge,
 }: {
   snapshot: GameStateSnapshot;
   myGuildId: string | null;
   placementMode: boolean;
   onPlaceTile: (x: number, y: number) => void;
+  onBuyBridge: (x: number, y: number) => void;
 }) {
   // Pan/zoom on the board itself, deliberately NOT the page - two-finger
   // pinch, mouse/touch drag, and ctrl/cmd+scroll (trackpad pinch on
@@ -103,14 +105,26 @@ export function GridView({
   // (which is also hard-disabled at the viewport-meta level - see
   // index.html - since WebKit can otherwise still zoom the whole page on
   // a pinch regardless of touch-action).
+  //
+  // Pan is tracked as an explicit translate offset (panRef), NOT via the
+  // viewport's native scrollLeft/scrollTop. Panning via scroll relies on
+  // the browser correctly recomputing "scrollable overflow" for a CHILD
+  // that's grown past its own layout box purely via `transform: scale()` -
+  // Chromium/Firefox get this right, but mobile WebKit has historically
+  // been inconsistent about it, which is what made pinch-zoom feel
+  // glitchy/rubber-bandy specifically on phones even after desktop was
+  // smooth. Combining pan + zoom into one `translate() scale()` transform
+  // sidesteps the browser's scroll/overflow model entirely - it's just
+  // arithmetic we own, so it behaves identically on every platform.
   const [zoom, setZoom] = useState(1);
   const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
   const viewportRef = useRef<HTMLDivElement>(null);
   const gridInnerRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number; dragged: boolean } | null>(null);
+  const dragState = useRef<{ x: number; y: number; panX: number; panY: number; dragged: boolean } | null>(null);
   const activePointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDist = useRef<number | null>(null);
   const lastTap = useRef<{ x: number; y: number; at: number } | null>(null);
@@ -130,8 +144,24 @@ export function GridView({
     return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
   }
 
-  function applyZoomTransform(z: number) {
-    if (gridInnerRef.current) gridInnerRef.current.style.transform = `scale(${z})`;
+  /** Keeps the pan offset from ever revealing empty space beyond the
+   * content's edge - the content (unscaled size = the viewport's own
+   * clientWidth/clientHeight, since .grid-view fills the viewport at
+   * zoom 1) can only be dragged until its far edge reaches the viewport's
+   * near edge, in either direction. */
+  function clampPan(pan: { x: number; y: number }, z: number): { x: number; y: number } {
+    const el = viewportRef.current;
+    const w = el?.clientWidth ?? 0;
+    const h = el?.clientHeight ?? 0;
+    const minX = w * (1 - z);
+    const minY = h * (1 - z);
+    return { x: Math.min(0, Math.max(minX, pan.x)), y: Math.min(0, Math.max(minY, pan.y)) };
+  }
+
+  function applyTransform() {
+    if (gridInnerRef.current) {
+      gridInnerRef.current.style.transform = `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
+    }
   }
 
   function scheduleZoomStateSync() {
@@ -147,28 +177,26 @@ export function GridView({
    * (localX, localY) stationary on screen - so a pinch or scroll-zoom
    * anchors to your fingers/cursor instead of always the top-left corner. */
   function zoomAt(nextZoom: number, localX: number, localY: number) {
-    const el = viewportRef.current;
     const prevZoom = zoomRef.current;
     const clamped = clampZoom(nextZoom);
-    if (el && clamped !== prevZoom) {
+    if (clamped !== prevZoom) {
       const ratio = clamped / prevZoom;
-      el.scrollLeft = (el.scrollLeft + localX) * ratio - localX;
-      el.scrollTop = (el.scrollTop + localY) * ratio - localY;
+      panRef.current = {
+        x: panRef.current.x * ratio + localX * (1 - ratio),
+        y: panRef.current.y * ratio + localY * (1 - ratio),
+      };
     }
     zoomRef.current = clamped;
-    applyZoomTransform(clamped);
+    panRef.current = clampPan(panRef.current, clamped);
+    applyTransform();
     scheduleZoomStateSync();
   }
 
   function resetZoom() {
     zoomRef.current = 1;
-    applyZoomTransform(1);
+    panRef.current = { x: 0, y: 0 };
+    applyTransform();
     setZoom(1);
-    const el = viewportRef.current;
-    if (el) {
-      el.scrollLeft = 0;
-      el.scrollTop = 0;
-    }
   }
 
   function dist(a: { x: number; y: number }, b: { x: number; y: number }): number {
@@ -201,16 +229,17 @@ export function GridView({
       lastTap.current = { x: e.clientX, y: e.clientY, at: now };
 
       if (zoomRef.current <= 1 || (e.pointerType === "mouse" && e.button !== 0)) return;
-      dragState.current = { x: e.clientX, y: e.clientY, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, dragged: false };
+      dragState.current = { x: e.clientX, y: e.clientY, panX: panRef.current.x, panY: panRef.current.y, dragged: false };
     }
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const el = viewportRef.current;
-    if (!el || !activePointers.current.has(e.pointerId)) return;
+    if (!activePointers.current.has(e.pointerId)) return;
     activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (activePointers.current.size === 2 && pinchDist.current) {
+      const el = viewportRef.current;
+      if (!el) return;
       const pts = [...activePointers.current.values()];
       const newDist = dist(pts[0], pts[1]);
       const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
@@ -225,8 +254,8 @@ export function GridView({
     const dx = e.clientX - drag.x;
     const dy = e.clientY - drag.y;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.dragged = true;
-    el.scrollLeft = drag.scrollLeft - dx;
-    el.scrollTop = drag.scrollTop - dy;
+    panRef.current = clampPan({ x: drag.panX + dx, y: drag.panY + dy }, zoomRef.current);
+    applyTransform();
   }
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
@@ -285,7 +314,24 @@ export function GridView({
   const selectedKind: ResourceKind = selectedCell?.resourceKind ?? "keep";
   const selectedIsHq = selectedCell?.type === "hq";
   const selectedIsRiver = !!selectedCell?.river;
+  const selectedIsBridgeBuyable =
+    !!myGuildId &&
+    !!selectedCell?.river &&
+    selectedCell.owner === null &&
+    !!selectedCell &&
+    [
+      `${selectedCell.x + 1},${selectedCell.y}`,
+      `${selectedCell.x - 1},${selectedCell.y}`,
+      `${selectedCell.x},${selectedCell.y + 1}`,
+      `${selectedCell.x},${selectedCell.y - 1}`,
+    ].some((n) => cellsByKey.get(n)?.owner === myGuildId);
   const selectedRank = selectedOwner ? rankedGuilds.findIndex((g) => g.id === selectedOwner.id) + 1 : 0;
+
+  function handleBuyBridgeClick() {
+    if (!selectedCell) return;
+    onBuyBridge(selectedCell.x, selectedCell.y);
+    closePopup();
+  }
 
   let popupStyle: React.CSSProperties | undefined;
   if (selectedCell && anchorRect) {
@@ -333,9 +379,26 @@ export function GridView({
         ref={gridInnerRef}
         className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}${placementMode ? " grid-view--placing" : ""}`}
         style={{
-          gridTemplateColumns: `repeat(${snapshot.gridSize}, 1fr)`,
-          gridTemplateRows: `repeat(${snapshot.gridSize}, 1fr)`,
-          transform: `scale(${zoom})`,
+          // minmax(0, 1fr), NOT bare 1fr: a plain `1fr` track can only shrink
+          // to its content's min-content size, and several cell decorations
+          // (SVG icons, resource glyphs) have a real intrinsic minimum width
+          // - summed across 50+ columns that forced this grid wider than its
+          // own 100%-width container on narrow screens, silently overflowing
+          // the mobile viewport before any pinch/pan gesture even began.
+          // `minmax(0, 1fr)` lets a track shrink all the way to 0, so all 50
+          // columns actually divide the container's real width evenly - the
+          // root cause of the pinch/pan math (which assumes the container IS
+          // the full viewport) feeling glitchy specifically on phones.
+          gridTemplateColumns: `repeat(${snapshot.gridSize}, minmax(0, 1fr))`,
+          // Read panRef directly (not just `zoom` state) so a re-render
+          // triggered by anything else - a fresh snapshot arriving over the
+          // websocket, a zoom-state sync after a gesture - always reflects
+          // the CURRENT pan instead of resetting it to (0,0) here and then
+          // relying on the next pointermove to silently repair it a frame
+          // later (that repair-lag is what read as "glitchy" on mobile,
+          // where frames are scarcer to begin with).
+          gridTemplateRows: `repeat(${snapshot.gridSize}, minmax(0, 1fr))`,
+          transform: `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoom})`,
           transformOrigin: "0 0",
         }}
       >
@@ -360,17 +423,25 @@ export function GridView({
           const roadE = owner ? cellsByKey.get(`${cell.x + 1},${cell.y}`)?.owner === owner.id : false;
           const roadW = owner ? cellsByKey.get(`${cell.x - 1},${cell.y}`)?.owner === owner.id : false;
 
+          const neighborKeys = [
+            `${cell.x + 1},${cell.y}`,
+            `${cell.x - 1},${cell.y}`,
+            `${cell.x},${cell.y + 1}`,
+            `${cell.x},${cell.y - 1}`,
+          ];
+
           const isEligible =
             placementMode &&
             !!myGuildId &&
             cell.owner === null &&
-            (!cell.river || cell.riverCrossing) &&
-            [
-              `${cell.x + 1},${cell.y}`,
-              `${cell.x - 1},${cell.y}`,
-              `${cell.x},${cell.y + 1}`,
-              `${cell.x},${cell.y - 1}`,
-            ].some((n) => cellsByKey.get(n)?.owner === myGuildId);
+            !cell.river &&
+            neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
+
+          const isBridgeBuyable =
+            !!myGuildId && !!cell.river && cell.owner === null && neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
+
+          const hasRoadOrRiver = !!cell.river || (!!owner && cell.type === "empty");
+          const showVillager = !!owner && cell.type === "empty" && !cell.river && hash(cell.x + 41, cell.y + 17) < 38;
 
           const clickable = isEligible || isKeep || isHq || !!cell.river;
 
@@ -402,28 +473,27 @@ export function GridView({
                 inBattle ? "grid-cell--battle" : "",
                 isMine ? "grid-cell--mine" : "",
                 clickable ? "grid-cell--clickable" : "",
-                isEligible ? "grid-cell--eligible" : "",
+                isEligible || isBridgeBuyable ? "grid-cell--eligible" : "",
                 cell.river ? "grid-cell--river" : "",
+                hasRoadOrRiver ? "grid-cell--no-seam" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
               onClick={clickable ? handleClick : undefined}
               title={
-                cell.riverCrossing
+                cell.river
                   ? owner
-                    ? `Bridge crossing — bridged by ${owner.name}, click for details`
-                    : isEligible
-                      ? "Bridge crossing — place a banked tile here to pay the toll and settle it"
-                      : "Bridge crossing — unclaimed, click for details"
-                  : cell.river
-                    ? "River — can't be settled, click for details"
-                    : isEligible
-                      ? "Place your banked tile here"
-                      : owner
-                        ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
-                        : isKeep
-                          ? `${RESOURCE_LABEL[kind]} — click for details`
-                          : "Open Field"
+                    ? `Bridge — built by ${owner.name}, click for details`
+                    : isBridgeBuyable
+                      ? `River — click to build a bridge here for ${BRIDGE_TILE_COST} silver`
+                      : "River — impassable, click for details"
+                  : isEligible
+                    ? "Place your banked tile here"
+                    : owner
+                      ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
+                      : isKeep
+                        ? `${RESOURCE_LABEL[kind]} — click for details`
+                        : "Open Field"
               }
             >
               {cell.river && (
@@ -435,10 +505,12 @@ export function GridView({
                   // jumping to a new unaligned pattern every tile.
                   seed={cell.riverFlowsAlongX ? cell.y : cell.x}
                   vertical={cell.riverFlowsAlongX}
-                  crossing={cell.riverCrossing}
+                  crossing={!!cell.owner}
                 />
               )}
-              {owner && cell.type === "empty" && !cell.river && <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} />}
+              {owner && cell.type === "empty" && !cell.river && (
+                <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} seed={cell.x * 7 + cell.y * 3} />
+              )}
 
               {showTree && <TreeIcon size={13} seed={cell.x * 7 + cell.y} />}
               {showRock && <RockIcon size={12} seed={cell.x * 5 + cell.y * 3} />}
@@ -451,7 +523,17 @@ export function GridView({
               )}
 
               {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
-              {cell.type === "empty" && owner && <KnightIcon color={owner.color} size={11} />}
+              {showVillager && (
+                <div
+                  className="villager-wrap"
+                  style={{
+                    animationDuration: `${2.6 + (hash(cell.x, cell.y) % 14) / 10}s`,
+                    animationDelay: `-${(hash(cell.y, cell.x) % 30) / 10}s`,
+                  }}
+                >
+                  <VillagerIcon color={owner!.color} size={10} />
+                </div>
+              )}
               {isEligible && (
                 <svg className="grid-cell__place-marker" width="42%" height="42%" viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="10" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
@@ -496,26 +578,31 @@ export function GridView({
             {selectedOwner ? (
               <FlagBadge color={selectedOwner.color} decal={selectedOwner.flagDecal} size={56} />
             ) : (
-              <span style={{ fontSize: 40 }}>{selectedCell.riverCrossing ? "🌉" : "🌊"}</span>
+              <span style={{ fontSize: 40 }}>{selectedIsBridgeBuyable ? "🌉" : "🌊"}</span>
             )}
           </div>
           <div>
-            <h3>{selectedCell.riverCrossing ? "Bridge Crossing" : "River"}</h3>
+            <h3>{selectedOwner ? "Bridge" : "River"}</h3>
             <p className="keep-info__status">
-              {selectedOwner ? `Bridged by ${selectedOwner.name}` : selectedCell.riverCrossing ? "Unclaimed" : "Impassable"}
+              {selectedOwner ? `Bridged by ${selectedOwner.name}` : selectedIsBridgeBuyable ? "Borders your territory" : "Impassable"}
             </p>
             <p className="keep-info__desc">
-              {selectedCell.riverCrossing
-                ? "A shallow ford, worn smooth by old cart tracks - solid enough to build a bridge on."
-                : "Deep, fast water. No bridge here - territory can't cross it."}
+              {selectedOwner
+                ? "A sturdy plank bridge, built to carry this bank's territory across."
+                : "Deep, fast water - no tile bank can settle it. Buy it outright as a bridge instead, once it borders your territory."}
             </p>
             <p className="keep-info__buff">
-              {selectedCell.riverCrossing
-                ? selectedOwner
-                  ? "⚡ Claimed - this bank's territory now continues across the river here."
-                  : `⚡ Place a banked tile here to pay a ${BRIDGE_TOLL_SILVER}-silver toll and claim it, once it borders your territory.`
-                : "⚡ The river runs on for a while yet - find a bridge crossing to get your territory across."}
+              {selectedOwner
+                ? "⚡ Claimed - this bank's territory now continues across the river here."
+                : selectedIsBridgeBuyable
+                  ? `⚡ Build a bridge here for ${BRIDGE_TILE_COST} silver, right now.`
+                  : "⚡ The river runs on for a while yet - expand your border to reach a spot you can bridge."}
             </p>
+            {selectedIsBridgeBuyable && (
+              <button type="button" className="diplomacy__btn keep-info__cta" onClick={handleBuyBridgeClick}>
+                🌉 Build Bridge ({BRIDGE_TILE_COST}🪙)
+              </button>
+            )}
           </div>
         </div>
       )}

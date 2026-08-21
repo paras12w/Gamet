@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatMessage, GameStateSnapshot, Identity } from "../types";
 import {
   breakAlliance,
-  buyBridgePermit,
   buyHeraldFavor,
   buySpyglass,
   buyTile,
   buyTitle,
-  buyWard,
   cancelWager,
   claimLeadership,
   getChatHistory,
@@ -25,6 +23,7 @@ import { SECTOR_INFO } from "../lib/sectors";
 import { soundEngine } from "../lib/sound";
 import { AllianceChatThread } from "./AllianceChatThread";
 import { formatCoins } from "../lib/coins";
+import { bandWord } from "../lib/warband";
 import { LiveTicker } from "./GuildBar";
 
 export type GuildMenuTab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "market" | "chat";
@@ -38,9 +37,6 @@ const COUNCIL_SCOUT_DISCOUNT = 2;
 // Mirrors server/src/config.ts's Market constants.
 const BUY_TILE_BASE_COST = 12;
 const BUY_TILE_COST_STEP = 6;
-const BRIDGE_PERMIT_COST = 10;
-const WARD_COST = 18;
-const MAX_WARDS = 3;
 const SPYGLASS_COST = 12;
 const HERALD_FAVOR_COST = 8;
 const TITLE_COST = 15;
@@ -133,6 +129,7 @@ export function GuildMenu({
   if (!guild) return null;
 
   const rank = [...snapshot.guilds].sort((a, b) => b.squareCount - a.squareCount).findIndex((g) => g.id === guild.id) + 1;
+  const myBandWord = bandWord(guild.members.length);
   const streakEntries = Object.entries(guild.streaks).filter(([, v]) => v > 0);
 
   const myWagers = snapshot.wagers.filter((w) => w.fromGuild === guild.id || w.toGuild === guild.id);
@@ -771,11 +768,6 @@ export function GuildMenu({
                 🏪 Spend silver on lasting advantages instead of just banking it. Only your guild's leader can buy.
               </p>
 
-              <div className="market__assets">
-                <span>🛡️ {guild.wards} ward{guild.wards === 1 ? "" : "s"} held</span>
-                <span>🌉 {guild.bridgeCredits} free crossing{guild.bridgeCredits === 1 ? "" : "s"}</span>
-              </div>
-
               {!isLeader && <div className="empty-hint">Only your guild's leader can spend the treasury.</div>}
 
               <div className="market__grid">
@@ -795,42 +787,6 @@ export function GuildMenu({
                       {guild.pendingTiles >= 5
                         ? "Bank full"
                         : `Buy (${BUY_TILE_BASE_COST + guild.tilePurchasesThisSession * BUY_TILE_COST_STEP}🪙)`}
-                    </button>
-                  )}
-                </div>
-
-                <div className="market-item">
-                  <span className="market-item__icon">🌉</span>
-                  <div className="market-item__body">
-                    <h4>Bridge Permit</h4>
-                    <p>Your next river crossing costs no toll.</p>
-                  </div>
-                  {isLeader && (
-                    <button
-                      type="button"
-                      className="diplomacy__btn"
-                      disabled={marketBusy === "buy-bridge-permit"}
-                      onClick={() => runMarket("buy-bridge-permit", () => buyBridgePermit(guildId!, identity.leaderSecret!))}
-                    >
-                      Buy ({BRIDGE_PERMIT_COST}🪙)
-                    </button>
-                  )}
-                </div>
-
-                <div className="market-item">
-                  <span className="market-item__icon">🛡️</span>
-                  <div className="market-item__body">
-                    <h4>Palisade Ward</h4>
-                    <p>Absorbs your next lost battle outright - no ground or streak lost. Max {MAX_WARDS} held.</p>
-                  </div>
-                  {isLeader && (
-                    <button
-                      type="button"
-                      className="diplomacy__btn"
-                      disabled={marketBusy === "buy-ward" || guild.wards >= MAX_WARDS}
-                      onClick={() => runMarket("buy-ward", () => buyWard(guildId!, identity.leaderSecret!))}
-                    >
-                      {guild.wards >= MAX_WARDS ? "Max held" : `Buy (${WARD_COST}🪙)`}
                     </button>
                   )}
                 </div>
@@ -874,8 +830,8 @@ export function GuildMenu({
                 <div className="market-item">
                   <span className="market-item__icon">🏷️</span>
                   <div className="market-item__body">
-                    <h4>Guild Title</h4>
-                    <p>A custom epithet shown under your guild's name{guild.title ? ` - currently "${guild.title}"` : ""}.</p>
+                    <h4>{myBandWord} Title</h4>
+                    <p>A custom epithet shown under your {myBandWord.toLowerCase()}'s name{guild.title ? ` - currently "${guild.title}"` : ""}.</p>
                     {isLeader && (
                       <form className="market-item__title-form" onSubmit={submitTitlePurchase}>
                         <input

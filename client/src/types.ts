@@ -22,7 +22,6 @@ export interface Cell {
   owner: string | null;
   resourceKind?: ResourceKind;
   river?: boolean;
-  riverCrossing?: boolean;
   riverFlowsAlongX?: boolean;
 }
 
@@ -42,7 +41,6 @@ export type RoundOutcome =
   | "battle_lost"
   | "battle_tied"
   | "battle_forfeit"
-  | "battle_warded"
   | "no_proposal"
   | "takeover_win"
   | "takeover_lost";
@@ -120,8 +118,6 @@ export interface PublicGuild {
   achievements: string[];
   sectorWins: Record<string, number>;
   title: string;
-  wards: number;
-  bridgeCredits: number;
   tilePurchasesThisSession: number;
 }
 

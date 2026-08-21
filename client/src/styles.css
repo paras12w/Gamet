@@ -282,16 +282,15 @@ h1, h2, h3 {
 .grid-zoom-viewport {
   width: 100%;
   aspect-ratio: 1;
-  overflow: auto;
+  /* Pan+zoom is one combined `translate() scale()` transform we compute
+     and apply ourselves (see GridView.tsx) - not native scrolling - so
+     this just needs to clip content that's been panned/zoomed past its
+     own edge, never actually scroll. `touch-action: none` stops the
+     browser from also trying to scroll/zoom this element on touch, which
+     is what let a pinch here leak into a page-level zoom before. */
+  overflow: hidden;
   border-radius: 2px;
-  /* Pinch/pan on the board is handled entirely ourselves via Pointer
-     Events (see GridView.tsx) - `touch-action: none` stops the browser
-     from also trying to scroll/zoom this element on touch, which is what
-     let a pinch here leak into a page-level zoom before. */
   touch-action: none;
-  /* Instant, not animated - a browser's smooth-scroll interpolation would
-     fight the scrollLeft/scrollTop we set every gesture frame ourselves. */
-  scroll-behavior: auto;
 }
 
 .grid-zoom-viewport--zoomed {
@@ -300,16 +299,6 @@ h1, h2, h3 {
 
 .grid-zoom-viewport--zoomed:active {
   cursor: grabbing;
-}
-
-.grid-zoom-viewport::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-.grid-zoom-viewport::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 6px;
 }
 
 .grid-view {
@@ -362,6 +351,14 @@ h1, h2, h3 {
      four cells outlining itself made the whole thing look like four small
      boxes instead of one castle. A single border around the merged block
      lives on .hq-castle-wrap instead, which already spans all four. */
+  outline: none;
+}
+
+/* River and road tiles paint their own full-bleed texture (see the SVG
+   overscan trick in icons.tsx) - the per-cell hairline outline above reads
+   as a grid seam cutting across that continuous texture instead of a subtle
+   boundary between two open fields, so it's dropped here. */
+.grid-cell--no-seam {
   outline: none;
 }
 
@@ -542,6 +539,11 @@ h1, h2, h3 {
   color: var(--text-dim);
   font-style: italic;
   line-height: 1.4;
+}
+
+.keep-info__cta {
+  display: block;
+  margin: 10px auto 0;
 }
 
 .keep-info__buff {
@@ -1333,18 +1335,6 @@ h1, h2, h3 {
   gap: 12px;
 }
 
-.market__assets {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 0.78rem;
-  color: var(--gold-bright);
-  background: rgba(212, 168, 67, 0.08);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 12px;
-}
-
 .market__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1714,10 +1704,25 @@ button:disabled {
   padding: 7px 4px;
   font-size: 0.85rem;
   border-bottom: 1px solid var(--border-dim);
+  /* .leaderboard__row is a <button> (clickable to open GuildDetailModal) -
+     reset it back to reading as a plain row instead of a browser button. */
+  width: 100%;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .leaderboard__row:last-child {
   border-bottom: none;
+}
+
+.leaderboard__row:hover {
+  background: rgba(232, 196, 104, 0.08);
 }
 
 .leaderboard__row--mine {
@@ -2038,6 +2043,134 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ---------- Guild detail (leaderboard drill-down) ---------- */
+
+.guild-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.guild-detail {
+  position: relative;
+  max-width: 360px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guild-detail__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guild-detail__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 28px;
+}
+
+.guild-detail__header h3 {
+  margin: 0 0 2px;
+  color: var(--gold-bright);
+  font-size: 1.1rem;
+}
+
+.guild-detail__header p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.guild-detail__epithet {
+  color: var(--text-dim);
+  font-family: "IM Fell English", serif;
+  font-style: italic;
+  font-size: 0.85em;
+}
+
+.guild-detail__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.guild-detail__tagline {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+.guild-detail__map-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guild-detail__map {
+  display: grid;
+  gap: 0.5px;
+  background: var(--bg-deep);
+  border: 3px solid var(--border);
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.guild-detail__cell--mine {
+  box-shadow: 0 0 0 1px #fff inset;
+}
+
+.guild-detail__map-caption {
+  margin: 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+/* ---------- Wandering villagers ---------- */
+
+/* A subtle in-place shuffle (not real tile-to-tile movement) - cheap, pure
+   CSS transform so it costs nothing extra to render across a few hundred
+   owned fields, but reads as a living settlement instead of a static
+   sentry standing at attention on every single tile. */
+.villager-wrap {
+  animation-name: villager-walk;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes villager-walk {
+  0%,
+  100% {
+    transform: translateX(-2.5px) scaleX(1);
+  }
+  50% {
+    transform: translateX(2.5px) scaleX(-1);
+  }
 }
 
 /* ---------- Mode select ---------- */

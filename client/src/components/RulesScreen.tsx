@@ -58,7 +58,7 @@ const CATEGORIES: RuleCategory[] = [
           <>
             When your territory touches a rival's, the next round is a duel: whoever's call performed better claims the
             contested field, marches one field further, and earns a tile for the bank. Losing the duel means losing that
-            field &mdash; unless a Palisade Ward absorbs the blow (see The Market).
+            field.
           </>
         ),
       },
@@ -89,9 +89,9 @@ const CATEGORIES: RuleCategory[] = [
         title: "Rivers & bridges",
         body: (
           <>
-            Rivers cut across the realm and can't be settled &mdash; the only way across is a bridge crossing (marked with
-            planks), where a banked tile placement pays a silver toll to claim it. A Bridge Permit from the Market waives
-            that toll once.
+            Rivers cut across the realm and can't be settled with a banked tile &mdash; instead, buy any river tile
+            bordering your territory outright as a bridge for a flat silver cost, right from the board. A river running
+            several tiles wide needs a separate bridge purchase for each lane.
           </>
         ),
       },
@@ -163,10 +163,9 @@ const CATEGORIES: RuleCategory[] = [
         title: "Spend your silver",
         body: (
           <>
-            Silver isn't just for scouting and tolls &mdash; your guild menu's Market tab lets the leader buy a field
-            outright, a Bridge Permit, a Palisade Ward (absorbs your next lost battle), a Spyglass (scout every rival at
-            once), a Herald's Favor (reroll your flag), or a custom Guild Title shown under your name. Prices rise the more
-            you buy in a season, so spend with intent.
+            Silver isn't just for scouting and bridges &mdash; your guild menu's Market tab lets the leader buy a field
+            outright, a Spyglass (scout every rival at once), a Herald's Favor (reroll your flag), or a custom Guild Title
+            shown under your name. Prices rise the more you buy in a season, so spend with intent.
           </>
         ),
       },

@@ -134,17 +134,10 @@ export function buyTile(guildId: string, leaderSecret: string) {
   });
 }
 
-export function buyBridgePermit(guildId: string, leaderSecret: string) {
-  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-bridge-permit`, {
+export function buyBridgeTile(guildId: string, leaderSecret: string, x: number, y: number) {
+  return request<{ ok: true }>(`/guilds/${guildId}/bridge-tile`, {
     method: "POST",
-    body: JSON.stringify({ leaderSecret }),
-  });
-}
-
-export function buyWard(guildId: string, leaderSecret: string) {
-  return request<{ ok: true }>(`/guilds/${guildId}/market/buy-ward`, {
-    method: "POST",
-    body: JSON.stringify({ leaderSecret }),
+    body: JSON.stringify({ leaderSecret, x, y }),
   });
 }
 

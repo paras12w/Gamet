@@ -89,10 +89,6 @@ export interface RiverCell {
   // axis, this cell's water should render with vertical-flowing texture
   // when true, horizontal when false. Purely a rendering hint.
   flowsAlongX: boolean;
-  // A buyable bridge point: still open water (unclaimable directly), but
-  // a guild can spend a banked tile placement here to pay a toll and
-  // claim it, rather than the river just having a random unclaimable gap.
-  crossing: boolean;
 }
 
 /** Carves `count` winding, fully continuous rivers across the map (roughly
@@ -102,10 +98,10 @@ export interface RiverCell {
  * same adjacency rule tile placement itself uses - by treating the
  * main-axis advance and the perpendicular jitter as two separate steps
  * instead of combining both coordinate changes into one diagonal jump.
- * About one cell in six along the path is marked as a bridge crossing
- * instead of leaving a plain gap - the river never breaks on its own, but
- * a guild can pay a toll at a crossing to claim it (see BRIDGE_TOLL_SILVER
- * / placeTile). */
+ * Every river tile is impassable water until a guild spends silver to buy
+ * it as a bridge tile directly (see BRIDGE_TILE_COST / buyBridgeTile) -
+ * there's no more random "crossing" designation, any river tile bordering
+ * your territory can be bridged. */
 export function generateRivers(count: number): Map<CellKey, RiverCell> {
   const size = CONFIG.GRID_SIZE;
   const river = new Map<CellKey, RiverCell>();
@@ -130,19 +126,14 @@ export function generateRivers(count: number): Map<CellKey, RiverCell> {
         else x += Math.random() < 0.5 ? 1 : -1;
       }
     }
-    // Mark crossings first (every ~6th path cell), then widen: a stretch
-    // where the river runs two cells wide on a *fixed* side for a whole
-    // contiguous run, rather than an independent per-cell coin flip - which
-    // used to leave stray gaps in the "wide" side, since a widened cell
-    // wasn't always adjacent to the next one along the run. A widened cell
-    // also inherits its parent path cell's crossing status, so a bridge
-    // spans the river's full width at that point instead of leaving one of
-    // the two lanes uncrossable.
-    path.forEach((key, idx) => {
-      const crossing = idx % 6 === 5;
-      if (!river.has(key) || crossing) river.set(key, { flowsAlongX, crossing });
-    });
+    for (const key of path) {
+      if (!river.has(key)) river.set(key, { flowsAlongX });
+    }
 
+    // Widen: a stretch where the river runs two cells wide on a *fixed*
+    // side for a whole contiguous run, rather than an independent per-cell
+    // coin flip - which used to leave stray gaps in the "wide" side, since
+    // a widened cell wasn't always adjacent to the next one along the run.
     let widening = false;
     let widenSide = 1;
     for (const key of path) {
@@ -159,7 +150,7 @@ export function generateRivers(count: number): Map<CellKey, RiverCell> {
       if (!inBounds(wx, wy)) continue;
       const wKey = cellKey(wx, wy);
       if (river.has(wKey)) continue; // never clobber a real path cell
-      river.set(wKey, { flowsAlongX, crossing: river.get(key)!.crossing });
+      river.set(wKey, { flowsAlongX });
     }
   }
   return river;

@@ -99,10 +99,11 @@ export const CONFIG = {
   // castle that borders a river tile.
   RIVERSIDE_SILVER_BONUS: Number(process.env.RIVERSIDE_SILVER_BONUS ?? 2),
 
-  // Silver toll to claim a river's bridge-crossing cell with a banked tile
-  // placement. Rivers are otherwise fully impassable - this is the only
-  // way across.
-  BRIDGE_TOLL_SILVER: Number(process.env.BRIDGE_TOLL_SILVER ?? 6),
+  // Silver cost to buy one river tile outright as a bridge, directly (not
+  // from the tile bank) - any river tile bordering your territory is
+  // eligible. A river more than one tile wide needs one bridge purchase per
+  // lane. Rivers are otherwise fully impassable.
+  BRIDGE_TILE_COST: Number(process.env.BRIDGE_TILE_COST ?? 5),
 
   // Sector specialization: once a guild has this many wins in one of the
   // three kingdom sectors, every future win there gets a permanent bonus
@@ -131,15 +132,6 @@ export const CONFIG = {
   // - keeps it a real spend instead of a free-tile faucet.
   BUY_TILE_BASE_COST: Number(process.env.BUY_TILE_BASE_COST ?? 12),
   BUY_TILE_COST_STEP: Number(process.env.BUY_TILE_COST_STEP ?? 6),
-
-  // Bridge Permit: one free river-crossing toll (see BRIDGE_TOLL_SILVER).
-  BRIDGE_PERMIT_COST: Number(process.env.BRIDGE_PERMIT_COST ?? 10),
-
-  // Palisade Ward: absorbs the guild's next lost battle - the border holds,
-  // no ground or streak lost, but the attacker keeps their call's tile/
-  // silver reward. Capped per guild so it can't be stockpiled indefinitely.
-  WARD_COST: Number(process.env.WARD_COST ?? 18),
-  MAX_WARDS: Number(process.env.MAX_WARDS ?? 3),
 
   // Spyglass: scouts every rival with a locked-in call this round in one
   // purchase, instead of paying SCOUT_COST per guild.

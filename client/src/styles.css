@@ -2158,6 +2158,15 @@ button:disabled {
    owned fields, but reads as a living settlement instead of a static
    sentry standing at attention on every single tile. */
 .villager-wrap {
+  /* Without an explicit `position`, this div paints in an EARLIER CSS
+     stacking phase than the road/river tiles' `position: absolute` SVGs,
+     regardless of DOM order - a plain static box always paints before any
+     positioned sibling with z-index:auto. That put every villager visibly
+     underneath the road it's supposed to be standing on. `position:
+     relative` (no z-index needed) moves it into the same stacking phase as
+     those SVGs, where DOM order (this div comes after them) decides who's
+     on top. */
+  position: relative;
   animation-name: villager-walk;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;

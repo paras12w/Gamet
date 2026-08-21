@@ -339,6 +339,154 @@ export function GridView({
     return set;
   }, [snapshot.battles]);
 
+  // Memoized on everything the per-cell render actually depends on -
+  // deliberately NOT on `zoom`. A pinch or wheel gesture re-syncs `zoom`
+  // state once per animation frame (see scheduleZoomStateSync), which
+  // re-renders this component; without this memo, every one of those
+  // frames would re-run this ~2500-cell map (hash calcs, several Map
+  // lookups per cell for road/eligibility) even though none of that data
+  // changed - pure wasted work fighting the gesture for the same main
+  // thread. Memoizing means a zoom-only re-render reuses the exact same
+  // array of already-built elements, so React can bail out of touching
+  // this whole subtree instead of re-evaluating it every frame.
+  const cellElements = useMemo(() => {
+    return snapshot.cells.map((cell) => {
+      const key = `${cell.x},${cell.y}`;
+      const owner = cell.owner ? guildsById.get(cell.owner) : null;
+      const inBattle = battleCells.has(key);
+      const isMine = owner?.id === myGuildId;
+      const isPrimaryHq = cell.type === "hq" && !!owner && owner.hq === key;
+      const isHq = cell.type === "hq" && !!owner;
+      const isKeep = cell.type === "castle";
+      const kind: ResourceKind = cell.resourceKind ?? "keep";
+
+      const roll = hash(cell.x, cell.y);
+      const isBare = !!cell.owner || cell.type !== "empty" || !!cell.river;
+      const showTree = !isBare && roll < 12;
+      const showRock = !isBare && roll >= 12 && roll < 18;
+      const showBush = !isBare && roll >= 18 && roll < 23;
+
+      const neighborKeys = [
+        `${cell.x + 1},${cell.y}`,
+        `${cell.x - 1},${cell.y}`,
+        `${cell.x},${cell.y + 1}`,
+        `${cell.x},${cell.y - 1}`,
+      ];
+
+      const isEligible =
+        placementMode &&
+        !!myGuildId &&
+        cell.owner === null &&
+        !cell.river &&
+        neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
+
+      const isBridgeBuyable =
+        !!myGuildId && !!cell.river && cell.owner === null && neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
+
+      const hasRoadOrRiver = !!cell.river || (!!owner && cell.type === "empty");
+      const showVillager = !!owner && cell.type === "empty" && !cell.river && hash(cell.x + 41, cell.y + 17) < 38;
+
+      const clickable = isEligible || isKeep || isHq || !!cell.river;
+
+      function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+        if (isEligible) {
+          onPlaceTile(cell.x, cell.y);
+        } else if (isKeep || isHq || cell.river) {
+          const wrapRect = wrapRef.current?.getBoundingClientRect();
+          const cellRect = e.currentTarget.getBoundingClientRect();
+          if (wrapRect) {
+            setAnchorRect({
+              left: cellRect.left - wrapRect.left,
+              top: cellRect.top - wrapRect.top,
+              width: cellRect.width,
+              height: cellRect.height,
+            });
+          }
+          setSelectedKeep(key);
+        }
+      }
+
+      return (
+        <div
+          key={key}
+          className={[
+            "grid-cell",
+            isKeep ? "grid-cell--castle" : "",
+            cell.type === "hq" ? "grid-cell--hq" : "",
+            inBattle ? "grid-cell--battle" : "",
+            isMine ? "grid-cell--mine" : "",
+            clickable ? "grid-cell--clickable" : "",
+            isEligible || isBridgeBuyable ? "grid-cell--eligible" : "",
+            cell.river ? "grid-cell--river" : "",
+            hasRoadOrRiver ? "grid-cell--no-seam" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          onClick={clickable ? handleClick : undefined}
+          title={
+            cell.river
+              ? owner
+                ? `Bridge — built by ${owner.name}, click for details`
+                : isBridgeBuyable
+                  ? `River — click to build a bridge here for ${BRIDGE_TILE_COST} silver`
+                  : "River — impassable, click for details"
+              : isEligible
+                ? "Place your banked tile here"
+                : owner
+                  ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
+                  : isKeep
+                    ? `${RESOURCE_LABEL[kind]} — click for details`
+                    : "Open Field"
+          }
+        >
+          {cell.river && (
+            <RiverTile
+              // Seeded off the axis that stays CONSTANT along the flow
+              // (y for a vertical-flowing river, x for a horizontal one)
+              // so consecutive tiles down the same lane share a wave
+              // phase and the texture reads as continuous instead of
+              // jumping to a new unaligned pattern every tile.
+              seed={cell.riverFlowsAlongX ? cell.y : cell.x}
+              vertical={cell.riverFlowsAlongX}
+              crossing={!!cell.owner}
+            />
+          )}
+          {owner && cell.type === "empty" && !cell.river && <RoadTile seed={cell.x * 7 + cell.y * 3} />}
+
+          {showTree && <TreeIcon size={13} seed={cell.x * 7 + cell.y} />}
+          {showRock && <RockIcon size={12} seed={cell.x * 5 + cell.y * 3} />}
+          {showBush && <BushIcon size={11} seed={cell.x * 3 + cell.y * 11} />}
+
+          {isPrimaryHq && (
+            <div className="hq-castle-wrap">
+              <CastleIcon color={owner!.color} size="72%" />
+            </div>
+          )}
+
+          {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
+          {showVillager && (
+            <div
+              className="villager-wrap"
+              style={{
+                animationDuration: `${2.6 + (hash(cell.x, cell.y) % 14) / 10}s`,
+                animationDelay: `-${(hash(cell.y, cell.x) % 30) / 10}s`,
+              }}
+            >
+              <VillagerIcon color={owner!.color} size={10} />
+            </div>
+          )}
+          {isEligible && (
+            <svg className="grid-cell__place-marker" width="42%" height="42%" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="10" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
+              <rect x="3" y="10" width="18" height="4" rx="1.5" fill="currentColor" />
+            </svg>
+          )}
+        </div>
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot.cells, guildsById, cellsByKey, battleCells, myGuildId, placementMode, onPlaceTile]);
+
   const selectedCell = selectedKeep ? cellsByKey.get(selectedKeep) : null;
   const selectedOwner = selectedCell?.owner ? guildsById.get(selectedCell.owner) : null;
   const selectedKind: ResourceKind = selectedCell?.resourceKind ?? "keep";
@@ -432,147 +580,7 @@ export function GridView({
           transformOrigin: "0 0",
         }}
       >
-        {snapshot.cells.map((cell) => {
-          const key = `${cell.x},${cell.y}`;
-          const owner = cell.owner ? guildsById.get(cell.owner) : null;
-          const inBattle = battleCells.has(key);
-          const isMine = owner?.id === myGuildId;
-          const isPrimaryHq = cell.type === "hq" && !!owner && owner.hq === key;
-          const isHq = cell.type === "hq" && !!owner;
-          const isKeep = cell.type === "castle";
-          const kind: ResourceKind = cell.resourceKind ?? "keep";
-
-          const roll = hash(cell.x, cell.y);
-          const isBare = !!cell.owner || cell.type !== "empty" || !!cell.river;
-          const showTree = !isBare && roll < 12;
-          const showRock = !isBare && roll >= 12 && roll < 18;
-          const showBush = !isBare && roll >= 18 && roll < 23;
-
-          const roadN = owner ? cellsByKey.get(`${cell.x},${cell.y - 1}`)?.owner === owner.id : false;
-          const roadS = owner ? cellsByKey.get(`${cell.x},${cell.y + 1}`)?.owner === owner.id : false;
-          const roadE = owner ? cellsByKey.get(`${cell.x + 1},${cell.y}`)?.owner === owner.id : false;
-          const roadW = owner ? cellsByKey.get(`${cell.x - 1},${cell.y}`)?.owner === owner.id : false;
-
-          const neighborKeys = [
-            `${cell.x + 1},${cell.y}`,
-            `${cell.x - 1},${cell.y}`,
-            `${cell.x},${cell.y + 1}`,
-            `${cell.x},${cell.y - 1}`,
-          ];
-
-          const isEligible =
-            placementMode &&
-            !!myGuildId &&
-            cell.owner === null &&
-            !cell.river &&
-            neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
-
-          const isBridgeBuyable =
-            !!myGuildId && !!cell.river && cell.owner === null && neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
-
-          const hasRoadOrRiver = !!cell.river || (!!owner && cell.type === "empty");
-          const showVillager = !!owner && cell.type === "empty" && !cell.river && hash(cell.x + 41, cell.y + 17) < 38;
-
-          const clickable = isEligible || isKeep || isHq || !!cell.river;
-
-          function handleClick(e: React.MouseEvent<HTMLDivElement>) {
-            if (isEligible) {
-              onPlaceTile(cell.x, cell.y);
-            } else if (isKeep || isHq || cell.river) {
-              const wrapRect = wrapRef.current?.getBoundingClientRect();
-              const cellRect = e.currentTarget.getBoundingClientRect();
-              if (wrapRect) {
-                setAnchorRect({
-                  left: cellRect.left - wrapRect.left,
-                  top: cellRect.top - wrapRect.top,
-                  width: cellRect.width,
-                  height: cellRect.height,
-                });
-              }
-              setSelectedKeep(key);
-            }
-          }
-
-          return (
-            <div
-              key={key}
-              className={[
-                "grid-cell",
-                isKeep ? "grid-cell--castle" : "",
-                cell.type === "hq" ? "grid-cell--hq" : "",
-                inBattle ? "grid-cell--battle" : "",
-                isMine ? "grid-cell--mine" : "",
-                clickable ? "grid-cell--clickable" : "",
-                isEligible || isBridgeBuyable ? "grid-cell--eligible" : "",
-                cell.river ? "grid-cell--river" : "",
-                hasRoadOrRiver ? "grid-cell--no-seam" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={clickable ? handleClick : undefined}
-              title={
-                cell.river
-                  ? owner
-                    ? `Bridge — built by ${owner.name}, click for details`
-                    : isBridgeBuyable
-                      ? `River — click to build a bridge here for ${BRIDGE_TILE_COST} silver`
-                      : "River — impassable, click for details"
-                  : isEligible
-                    ? "Place your banked tile here"
-                    : owner
-                      ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
-                      : isKeep
-                        ? `${RESOURCE_LABEL[kind]} — click for details`
-                        : "Open Field"
-              }
-            >
-              {cell.river && (
-                <RiverTile
-                  // Seeded off the axis that stays CONSTANT along the flow
-                  // (y for a vertical-flowing river, x for a horizontal one)
-                  // so consecutive tiles down the same lane share a wave
-                  // phase and the texture reads as continuous instead of
-                  // jumping to a new unaligned pattern every tile.
-                  seed={cell.riverFlowsAlongX ? cell.y : cell.x}
-                  vertical={cell.riverFlowsAlongX}
-                  crossing={!!cell.owner}
-                />
-              )}
-              {owner && cell.type === "empty" && !cell.river && (
-                <RoadTile n={roadN} s={roadS} e={roadE} w={roadW} seed={cell.x * 7 + cell.y * 3} />
-              )}
-
-              {showTree && <TreeIcon size={13} seed={cell.x * 7 + cell.y} />}
-              {showRock && <RockIcon size={12} seed={cell.x * 5 + cell.y * 3} />}
-              {showBush && <BushIcon size={11} seed={cell.x * 3 + cell.y * 11} />}
-
-              {isPrimaryHq && (
-                <div className="hq-castle-wrap">
-                  <CastleIcon color={owner!.color} size="72%" />
-                </div>
-              )}
-
-              {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
-              {showVillager && (
-                <div
-                  className="villager-wrap"
-                  style={{
-                    animationDuration: `${2.6 + (hash(cell.x, cell.y) % 14) / 10}s`,
-                    animationDelay: `-${(hash(cell.y, cell.x) % 30) / 10}s`,
-                  }}
-                >
-                  <VillagerIcon color={owner!.color} size={10} />
-                </div>
-              )}
-              {isEligible && (
-                <svg className="grid-cell__place-marker" width="42%" height="42%" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="10" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
-                  <rect x="3" y="10" width="18" height="4" rx="1.5" fill="currentColor" />
-                </svg>
-              )}
-            </div>
-          );
-        })}
+        {cellElements}
       </div>
       </div>
 

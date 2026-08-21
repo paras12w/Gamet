@@ -305,6 +305,11 @@ h1, h2, h3 {
   overflow: hidden;
   border-radius: 2px;
   touch-action: none;
+  /* Anchors .grid-view-overlay's `position: absolute; inset: 0` below - it
+     needs to land exactly on top of .grid-view's box, and .grid-view is
+     this element's only normal-flow child (100% width, aspect-ratio: 1),
+     so inset: 0 relative to this element lines the two up perfectly. */
+  position: relative;
 }
 
 .grid-zoom-viewport--zoomed {
@@ -439,11 +444,41 @@ h1, h2, h3 {
   }
 }
 
-.grid-view--placing .grid-cell:not(.grid-cell--eligible) {
-  filter: brightness(0.72) saturate(0.75);
+/* Sits on top of .grid-view entirely (its own stacking context, positioned
+   absolutely and later in the DOM) rather than living inside it - see the
+   GridView.tsx comment on why this is a wholly separate element tree.
+   `border` matches .grid-view's own border thickness (transparent here)
+   so this grid's tracks land in the exact same place as the real cells
+   underneath; pointer-events is off by default so clicks for the normal
+   keep-info popups still reach the real board cells through it, turned
+   back on only for the actual clickable overlay cells within it. */
+.grid-view-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  border: 10px solid transparent;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 5;
 }
 
-.grid-cell--eligible {
+/* A single element spanning the whole grid instead of a `filter` applied to
+   every one of ~2500 `.grid-cell` elements individually (the original
+   approach) - forcing that many elements to repaint/composite through a
+   CSS filter at once was the largest cost in opening placement mode, badly
+   enough to read as "slow to open the menu." One semi-opaque layer costs a
+   single paint. It sits above the base cells (see the z-index scale below)
+   but below the `.grid-cell--place-overlay` cells, which draw their own
+   opaque background on top wherever a tile can actually go - so eligible
+   tiles still read as the bright, pick-me spots against a darkened board. */
+.grid-view__dim-overlay {
+  background: rgba(8, 6, 4, 0.55);
+  pointer-events: none;
+  z-index: 6;
+}
+
+.grid-cell--eligible,
+.grid-cell--place-overlay {
   box-shadow: inset 0 0 0 2px var(--gold-bright);
   animation: eligible-pulse 1.2s ease-in-out infinite;
 }
@@ -455,6 +490,34 @@ h1, h2, h3 {
   }
   50% {
     box-shadow: inset 0 0 0 2px rgba(232, 196, 104, 0.35);
+  }
+}
+
+/* Positioned via explicit grid-column/grid-row (see GridView.tsx) rather
+   than living in the main per-cell array, so entering/leaving placement
+   mode only ever creates or removes a handful of these instead of
+   recomputing all ~2500 board cells. z-index above everything else on the
+   board (HQ castles included) so it's never hidden behind another cell's
+   own overlay content. */
+.grid-cell--place-overlay {
+  position: relative;
+  z-index: 10;
+  background: var(--grass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 2px;
+  /* The parent .grid-view-overlay turns pointer-events off so clicks pass
+     through to the real board underneath everywhere else - turn it back on
+     just for these, since they're the one thing in that layer meant to be
+     clickable. */
+  pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .grid-cell--place-overlay:hover {
+    filter: brightness(1.2);
   }
 }
 
@@ -494,10 +557,23 @@ h1, h2, h3 {
   justify-content: center;
   pointer-events: none;
   filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
-  /* One border around the whole merged 2x2 block instead of each of its
-     four cells outlining itself - that's what read as "cluttered". */
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.75);
   border-radius: 2px;
+}
+
+/* One border around the whole merged 2x2 block instead of each of its four
+   cells outlining itself (that read as "cluttered" - see .grid-cell--hq
+   above) - but it still needs to say whose castle this is, the same as the
+   mine/rival borders on ordinary fields. A flat white frame on every HQ
+   regardless of owner (the original version of this rule) made a rival's
+   castle carry the same "this is mine" marking as your own - which is
+   exactly the "other guild's castle border looks bugged" report this
+   splits apart. */
+.hq-castle-wrap--mine {
+  box-shadow: inset 0 0 0 2px #f2ead2;
+}
+
+.hq-castle-wrap--rival {
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.6);
 }
 
 .grid-cell--battle {

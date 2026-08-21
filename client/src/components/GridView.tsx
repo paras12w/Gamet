@@ -389,37 +389,26 @@ export function GridView({
         `${cell.x},${cell.y - 1}`,
       ];
 
-      const isEligible =
-        placementMode &&
-        !!myGuildId &&
-        cell.owner === null &&
-        !cell.river &&
-        neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
-
       const isBridgeBuyable =
         !!myGuildId && !!cell.river && cell.owner === null && neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
 
       const hasRoadOrRiver = !!cell.river || (!!owner && cell.type === "empty");
       const showVillager = !!owner && cell.type === "empty" && !cell.river && hash(cell.x + 41, cell.y + 17) < 38;
 
-      const clickable = isEligible || isKeep || isHq || !!cell.river;
+      const clickable = isKeep || isHq || !!cell.river;
 
       function handleClick(e: React.MouseEvent<HTMLDivElement>) {
-        if (isEligible) {
-          onPlaceTile(cell.x, cell.y);
-        } else if (isKeep || isHq || cell.river) {
-          const wrapRect = wrapRef.current?.getBoundingClientRect();
-          const cellRect = e.currentTarget.getBoundingClientRect();
-          if (wrapRect) {
-            setAnchorRect({
-              left: cellRect.left - wrapRect.left,
-              top: cellRect.top - wrapRect.top,
-              width: cellRect.width,
-              height: cellRect.height,
-            });
-          }
-          setSelectedKeep(key);
+        const wrapRect = wrapRef.current?.getBoundingClientRect();
+        const cellRect = e.currentTarget.getBoundingClientRect();
+        if (wrapRect) {
+          setAnchorRect({
+            left: cellRect.left - wrapRect.left,
+            top: cellRect.top - wrapRect.top,
+            width: cellRect.width,
+            height: cellRect.height,
+          });
         }
+        setSelectedKeep(key);
       }
 
       return (
@@ -433,7 +422,7 @@ export function GridView({
             isMine ? "grid-cell--mine" : "",
             owner && !isMine ? "grid-cell--rival" : "",
             clickable ? "grid-cell--clickable" : "",
-            isEligible || isBridgeBuyable ? "grid-cell--eligible" : "",
+            isBridgeBuyable ? "grid-cell--eligible" : "",
             cell.river ? "grid-cell--river" : "",
             hasRoadOrRiver ? "grid-cell--no-seam" : "",
           ]
@@ -447,13 +436,11 @@ export function GridView({
                 : isBridgeBuyable
                   ? `River — click to build a bridge here for ${BRIDGE_TILE_COST} silver`
                   : "River — impassable, click for details"
-              : isEligible
-                ? "Place your banked tile here"
-                : owner
-                  ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
-                  : isKeep
-                    ? `${RESOURCE_LABEL[kind]} — click for details`
-                    : "Open Field"
+              : owner
+                ? `${owner.name}${cell.type === "hq" ? " — Guild HQ, click for details" : isKeep ? ` — Conquered ${RESOURCE_LABEL[kind]}` : " — Held Ground"}`
+                : isKeep
+                  ? `${RESOURCE_LABEL[kind]} — click for details`
+                  : "Open Field"
           }
         >
           {cell.river && (
@@ -475,7 +462,7 @@ export function GridView({
           {showBush && <BushIcon size={11} seed={cell.x * 3 + cell.y * 11} />}
 
           {isPrimaryHq && (
-            <div className="hq-castle-wrap">
+            <div className={`hq-castle-wrap ${isMine ? "hq-castle-wrap--mine" : "hq-castle-wrap--rival"}`}>
               <CastleIcon color={owner!.color} size="72%" />
             </div>
           )}
@@ -492,17 +479,53 @@ export function GridView({
               <VillagerIcon color={owner!.color} size={10} />
             </div>
           )}
-          {isEligible && (
-            <svg className="grid-cell__place-marker" width="42%" height="42%" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="10" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
-              <rect x="3" y="10" width="18" height="4" rx="1.5" fill="currentColor" />
-            </svg>
-          )}
         </div>
       );
     });
+    // Deliberately NOT dependent on `placementMode`/`onPlaceTile` - which
+    // cells are eligible to place a tile on is computed separately below
+    // (eligibleCells) from just the guild's own territory, not by scanning
+    // every cell on the board. Toggling placement mode used to force this
+    // entire ~2500-cell map to re-run (hash calcs, neighbor lookups, road
+    // seeding, for cells that never change) just to add a highlight to a
+    // few dozen of them - which is what made opening the placement UI feel
+    // slow. See the `.grid-cell--place-overlay` cells rendered as siblings
+    // of this array for how eligibility is now shown instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.cells, guildsById, cellsByKey, battleCells, myGuildId, placementMode, onPlaceTile]);
+  }, [snapshot.cells, guildsById, cellsByKey, battleCells, myGuildId]);
+
+  // Cheap, placementMode-scoped alternative to scanning the whole board:
+  // only the guild's own (typically small) territory needs to be walked to
+  // find its unclaimed, non-river neighbors. Returns nothing at all when
+  // not in placement mode, so toggling it off is instant too.
+  const eligibleCells = useMemo(() => {
+    if (!placementMode || !myGuildId) return [];
+    const myGuild = guildsById.get(myGuildId);
+    if (!myGuild) return [];
+    const seen = new Set<string>();
+    const result: { x: number; y: number; key: string }[] = [];
+    for (const ownedKey of myGuild.squares) {
+      const [xs, ys] = ownedKey.split(",");
+      const ox = Number(xs);
+      const oy = Number(ys);
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = ox + dx;
+        const ny = oy + dy;
+        const nkey = `${nx},${ny}`;
+        if (seen.has(nkey)) continue;
+        const cell = cellsByKey.get(nkey);
+        if (!cell || cell.owner !== null || cell.river) continue;
+        seen.add(nkey);
+        result.push({ x: nx, y: ny, key: nkey });
+      }
+    }
+    return result;
+  }, [placementMode, myGuildId, guildsById, cellsByKey]);
 
   const selectedCell = selectedKeep ? cellsByKey.get(selectedKeep) : null;
   const selectedOwner = selectedCell?.owner ? guildsById.get(selectedCell.owner) : null;
@@ -581,7 +604,7 @@ export function GridView({
       >
       <div
         ref={gridInnerRef}
-        className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}${placementMode ? " grid-view--placing" : ""}`}
+        className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}`}
         style={{
           // minmax(0, 1fr), NOT bare 1fr: a plain `1fr` track can only shrink
           // to its content's min-content size, and several cell decorations
@@ -608,6 +631,42 @@ export function GridView({
       >
         {cellElements}
       </div>
+      {/* A second grid, laid exactly on top of the first via absolute
+          positioning + the identical column/row template and transform, for
+          the placement-mode dimming + eligible-tile highlights. Kept as a
+          wholly separate element tree from `.grid-view` on purpose: this
+          one's children list is a handful of items instead of ~2500, so
+          entering/leaving placement mode never makes React reconcile
+          against the big list at all - not even to append a couple of new
+          items to the end of it (which still costs a pass over the full
+          list). Only mounted while it actually has something to show. */}
+      {placementMode && (
+        <div
+          className="grid-view-overlay"
+          style={{
+            gridTemplateColumns: `repeat(${snapshot.gridSize}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${snapshot.gridSize}, minmax(0, 1fr))`,
+            transform: `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoom})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          <div className="grid-view__dim-overlay" style={{ gridColumn: "1 / -1", gridRow: "1 / -1" }} />
+          {eligibleCells.map(({ x, y, key }) => (
+            <div
+              key={`elig-${key}`}
+              className="grid-cell--place-overlay"
+              style={{ gridColumn: x + 1, gridRow: y + 1 }}
+              onClick={() => onPlaceTile(x, y)}
+              title="Place your banked tile here"
+            >
+              <svg className="grid-cell__place-marker" width="42%" height="42%" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="10" y="3" width="4" height="18" rx="1.5" fill="currentColor" />
+                <rect x="3" y="10" width="18" height="4" rx="1.5" fill="currentColor" />
+              </svg>
+            </div>
+          ))}
+        </div>
+      )}
       </div>
 
       {selectedCell && selectedIsHq && selectedOwner && (

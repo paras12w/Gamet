@@ -191,6 +191,19 @@ export function GridView({
     }
   }
 
+  // Toggled directly on the DOM (not React state) so it costs nothing extra
+  // per gesture event - see .grid-view--gesturing in styles.css, which
+  // pauses the villager/eligible/battle CSS animations for as long as this
+  // class is present.
+  const gestureEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function markGesturing() {
+    gridInnerRef.current?.classList.add("grid-view--gesturing");
+    if (gestureEndTimer.current) clearTimeout(gestureEndTimer.current);
+    gestureEndTimer.current = setTimeout(() => {
+      gridInnerRef.current?.classList.remove("grid-view--gesturing");
+    }, 200);
+  }
+
   function scheduleZoomStateSync() {
     if (zoomRafPending.current) return;
     zoomRafPending.current = true;
@@ -269,6 +282,7 @@ export function GridView({
     if (activePointers.current.size === 2 && pinchDist.current) {
       const rect = viewportRectRef.current;
       if (!rect) return;
+      markGesturing();
       const pts = [...activePointers.current.values()];
       const newDist = dist(pts[0], pts[1]);
       const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
@@ -279,6 +293,7 @@ export function GridView({
 
     const drag = dragState.current;
     if (!drag) return;
+    markGesturing();
     const dx = e.clientX - drag.x;
     const dy = e.clientY - drag.y;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) drag.dragged = true;
@@ -313,6 +328,7 @@ export function GridView({
       if (!viewportRectRef.current) measureViewportRect();
       const rect = viewportRectRef.current;
       if (!rect) return;
+      markGesturing();
       const factor = Math.exp(-e.deltaY * 0.01);
       zoomAt(zoomRef.current * factor, e.clientX - rect.left, e.clientY - rect.top);
     }
@@ -415,6 +431,7 @@ export function GridView({
             cell.type === "hq" ? "grid-cell--hq" : "",
             inBattle ? "grid-cell--battle" : "",
             isMine ? "grid-cell--mine" : "",
+            owner && !isMine ? "grid-cell--rival" : "",
             clickable ? "grid-cell--clickable" : "",
             isEligible || isBridgeBuyable ? "grid-cell--eligible" : "",
             cell.river ? "grid-cell--river" : "",
@@ -516,7 +533,16 @@ export function GridView({
     const wrapWidth = wrapRef.current?.clientWidth ?? anchorRect.left * 2;
     const wrapHeight = wrapRef.current?.clientHeight ?? anchorRect.top * 2;
     const placeOnRight = anchorRect.left < wrapWidth / 2;
-    const top = Math.min(wrapHeight - 20, Math.max(20, anchorRect.top + anchorRect.height / 2));
+    // The popup is vertically centered on `top` via `transform:
+    // translateY(-50%)` (see .keep-info--floating), so it extends roughly
+    // half its own height both above and below this point - clamping the
+    // center to within 20px of the wrap's edge still let the box itself
+    // overflow past the bottom (or top) by however much taller than 20px
+    // it actually is. The popup can run to ~230px tall with a full
+    // description + buff line, so the margin needs to cover half of that,
+    // not just its own edge padding.
+    const verticalMargin = 130;
+    const top = Math.min(wrapHeight - verticalMargin, Math.max(verticalMargin, anchorRect.top + anchorRect.height / 2));
     popupStyle = placeOnRight
       ? { left: `${anchorRect.left + anchorRect.width + 10}px`, top: `${top}px` }
       : { right: `${wrapWidth - anchorRect.left + 10}px`, top: `${top}px` };

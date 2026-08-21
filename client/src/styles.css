@@ -362,6 +362,37 @@ h1, h2, h3 {
   outline: none;
 }
 
+/* Applied to .grid-view for the brief window an active pinch/drag/wheel
+   gesture is in progress (toggled directly via ref, not React state - see
+   GridView.tsx). The villager walk-cycle, the eligible-tile pulse, and the
+   battle pulse are all infinite CSS animations, each forcing a style
+   recalculation on their own timer regardless of the gesture - pausing
+   them for the ~1-2 seconds a gesture actually lasts is invisible to the
+   eye but frees up CPU cycles for exactly the moment the gesture's own
+   compositing work needs them most. */
+.grid-view--gesturing .villager-wrap,
+.grid-view--gesturing .grid-cell--eligible,
+.grid-view--gesturing .grid-cell--battle {
+  animation-play-state: paused;
+}
+
+/* Whose-is-it-at-a-glance: your own territory gets a bright, unmistakable
+   border and any rival's gets a dark one, on top of whatever guild-color
+   fill or texture the cell already has - previously the only signal was
+   the fill color itself, which doesn't read as "mine" vs "theirs" without
+   already knowing your own guild's color by heart. Excluded on HQ cells:
+   each one of a 2x2 HQ block outlining itself individually is what made a
+   guild's own castle look like four small boxes instead of one (see
+   .grid-cell--hq above) - the HQ's castle icon already unmistakably marks
+   whose it is. */
+.grid-cell--mine:not(.grid-cell--hq) {
+  box-shadow: inset 0 0 0 2px #f2ead2;
+}
+
+.grid-cell--rival:not(.grid-cell--hq) {
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55);
+}
+
 .grid-cell--clickable {
   cursor: pointer;
 }
@@ -571,6 +602,11 @@ h1, h2, h3 {
 }
 
 .app__sidebar > .app__pane.app__pane--active {
+  /* `flex: 1` (not just min-height: 0) - without a flex-grow/shrink basis
+     of its own, this pane sizes to its content and just pushes past the
+     sidebar's max-height instead of being bounded by it, so overflow-y:auto
+     below never actually engages. */
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -980,6 +1016,14 @@ h1, h2, h3 {
 
 .guild-menu__body {
   flex: 1;
+  /* Flex items default to `min-height: auto`, not 0 - meaning a column
+     flex child won't shrink below its own content's height unless this is
+     set explicitly. Safari enforces that default far more strictly than
+     Chromium does in practice, so `flex: 1; overflow-y: auto` alone
+     scrolled fine in (Chromium-based) testing but just grew past the
+     modal's fixed height - cutting the bottom off with no way to reach it -
+     specifically on Safari/iPad. */
+  min-height: 0;
   overflow-y: auto;
   padding: 24px 32px;
   display: flex;
@@ -2334,23 +2378,33 @@ button:disabled {
   display: none;
 }
 
+/* One breakpoint, not two: the previous 680px cutoff for the
+   single-active-pane/tab-bar treatment left a dead zone between 680-900px
+   (exactly iPad portrait width) where the layout stacked into a column
+   (board full width, then the ENTIRE untabbed sidebar below it) without
+   switching to the mobile one-pane-at-a-time view. That made the page tall
+   enough that the tile-bank/place button and the bottom of the guild menu
+   sat below the fold - and since the board has `touch-action: none` (so a
+   pinch there doesn't leak into a page zoom), a swipe that starts on top
+   of the board is swallowed instead of scrolling the page, trapping the
+   controls below it out of reach on a touch device. Matching this
+   breakpoint to the same 900px the column layout kicks in at means any
+   viewport narrow enough to stack vertically also always shows exactly
+   one pane at a time - board OR sidebar tab, never both stacked - so
+   there's nothing below the fold to swipe past in the first place. */
 @media (max-width: 900px) {
   .app__main {
     flex-direction: column;
+    padding-bottom: 74px;
   }
 
   .app__sidebar {
     width: 100%;
+    max-height: none;
   }
 
   .mode-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 680px) {
-  .app__main {
-    padding-bottom: 74px;
   }
 
   .app__board-pane {
@@ -2361,11 +2415,24 @@ button:disabled {
     display: block;
   }
 
-  .app__sidebar {
-    max-height: none;
+  .sidebar-tabs {
+    display: none;
   }
 
-  .sidebar-tabs {
+  /* The "Board" mobile tab still falls back to showing the guild pane
+     inside .app__sidebar (see App.tsx's `sidebarTab` fallback - it's what
+     lets the timer stay visible while looking at the map), but stacking
+     the full guild-bar/minimap pane below the board here is exactly the
+     "nothing below the fold to swipe past" case the comment above this
+     block promises isn't supposed to happen. Force it hidden while Board
+     is the active tab - the Timer (a sibling, not matched here) still
+     shows; switch to the Warband tab to reach the tile-bank/place button
+     instead of scrolling past the board for it.
+     Selector needs to match `.app__sidebar > .app__pane.app__pane--active`
+     above (3 classes) or lose the specificity tie-break outright, despite
+     coming later in the file - `display: none` from a lower-specificity
+     rule never overrides `display: flex` from a higher one. */
+  .app__sidebar--board-tab > .app__pane.app__pane--active {
     display: none;
   }
 

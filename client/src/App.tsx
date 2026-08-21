@@ -152,7 +152,7 @@ export default function App() {
               onBuyBridge={handleBuyBridge}
             />
           </div>
-          <aside className="app__sidebar">
+          <aside className={`app__sidebar${mobileTab === "board" ? " app__sidebar--board-tab" : ""}`}>
             <Timer snapshot={snapshot} />
             <nav className="sidebar-tabs">
               <button type="button" className={sidebarTab === "guild" ? "active" : ""} onClick={() => setMobileTab("guild")}>

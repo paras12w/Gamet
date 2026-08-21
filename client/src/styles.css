@@ -258,6 +258,10 @@ h1, h2, h3 {
 .grid-view-wrap {
   flex: 1;
   max-width: 900px;
+  /* Bounds the wrap's overall height so it can't force the page to scroll
+     on a short/landscape viewport - see .grid-zoom-viewport's width below,
+     which does the actual work of shrinking the square board to fit. */
+  max-height: calc(100vh - 170px);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -280,7 +284,17 @@ h1, h2, h3 {
 }
 
 .grid-zoom-viewport {
-  width: 100%;
+  /* `width: 100%` alone only bounds the square board by available WIDTH -
+     on a short/landscape tablet viewport, 100% of a wide container can
+     still make an aspect-ratio:1 box taller than the actual screen,
+     forcing the whole page to scroll just to see the rest of the board.
+     Capping width to the smaller of "100% of the container" or "the
+     vertical space actually available" means the square shrinks to fit
+     BOTH dimensions - it's always fully visible without scrolling, on any
+     screen shape. `margin: 0 auto` centers it once it's narrower than its
+     flex container (the common case this now applies on). */
+  width: min(100%, calc(100vh - 190px));
+  margin: 0 auto;
   aspect-ratio: 1;
   /* Pan+zoom is one combined `translate() scale()` transform we compute
      and apply ourselves (see GridView.tsx) - not native scrolling - so
@@ -393,12 +407,36 @@ h1, h2, h3 {
   box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55);
 }
 
+/* Mine/rival ownership borders use inset box-shadow, which (unlike a pure
+   transform) can force a real per-element repaint rather than just GPU
+   compositing when the whole board is being scaled every frame during a
+   pinch/wheel zoom - with potentially dozens to hundreds of owned tiles on
+   a mature board, that repaint cost is a likely cause of the zoom feeling
+   jittery specifically after these borders were added. They're not useful
+   mid-gesture anyway (you're not reading tile ownership while actively
+   zooming), so drop them for the same brief window the animations above
+   are paused. Declared AFTER the box-shadow rules above on purpose: same
+   selector specificity (two classes each, `:not()`'s argument included),
+   so whichever rule is later in the file wins the tie-break - this one
+   needs to win while gesturing, so it has to come second. */
+.grid-view--gesturing .grid-cell--mine,
+.grid-view--gesturing .grid-cell--rival {
+  box-shadow: none;
+}
+
 .grid-cell--clickable {
   cursor: pointer;
 }
 
-.grid-cell--clickable:hover {
-  filter: brightness(1.2);
+/* Scoped to devices that actually have a hover-capable pointer (a mouse) -
+   on a touchscreen, tapping an element can leave it "stuck" in :hover
+   state (there's no cursor to leave hover with), which is what made a
+   tapped castle/tile look visually wrong (stuck brighter) until tapping
+   somewhere else entirely. */
+@media (hover: hover) and (pointer: fine) {
+  .grid-cell--clickable:hover {
+    filter: brightness(1.2);
+  }
 }
 
 .grid-view--placing .grid-cell:not(.grid-cell--eligible) {
@@ -2489,5 +2527,23 @@ button:disabled {
     max-height: 100%;
     border-radius: 0;
     border-width: 0;
+  }
+
+  /* Below 900px, .app__main switches to a stacked column (board on top,
+     sidebar/Timer below), but .grid-zoom-viewport's own `100vh - 190px`
+     size cap was tuned for the SIDE-BY-SIDE desktop layout, where nothing
+     else shares the column with the board. Stacked, the Timer panel (which
+     stays visible on the Board tab) and the fixed .mobile-tabbar sit BELOW
+     the board in that same viewport height, so the 190px budget wasn't
+     nearly enough - the board rendered at its full width-bound size
+     regardless of how little vertical room was actually left, pushing the
+     Timer + tabbar below the fold and forcing the whole page to scroll.
+     This reserves roughly header+ticker (~102px) + inter-pane gap (18px) +
+     Timer panel (~240px) + reserved tabbar clearance (74px), plus a ~45px
+     safety margin for the placement-mode hint banner and text reflow, so
+     the board always shrinks to leave the Timer and tabbar on-screen
+     without scrolling. */
+  .grid-zoom-viewport {
+    width: min(100%, calc(100vh - 480px));
   }
 }

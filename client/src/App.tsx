@@ -48,13 +48,16 @@ export default function App() {
 
   async function handlePlaceTile(x: number, y: number) {
     if (!identity.guildId || !identity.leaderSecret) return;
+    // Exit placement mode and play the confirmation sound immediately so the
+    // tap feels instant - the server round-trip still happens in the
+    // background, and the live socket snapshot reconciles the real result a
+    // moment later. Only surface an error sound if the request actually fails.
+    setPlacementMode(false);
+    play("click");
     try {
       await placeTile(identity.guildId, identity.leaderSecret, x, y);
-      play("click");
     } catch {
       play("error");
-    } finally {
-      setPlacementMode(false);
     }
   }
 

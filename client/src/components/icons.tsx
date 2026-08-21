@@ -411,12 +411,19 @@ export function Hourglass({ fraction, size = 40 }: { fraction: number; size?: nu
       <rect x="4" y="20" width="16" height="2" rx="0.6" fill="#c9a227" />
       <path d="M6 4 H18 L13 12 L18 20 H6 L11 12 Z" fill="none" stroke="#c9a227" strokeWidth="1.2" strokeLinejoin="round" />
       <clipPath id="topBulb">
-        <path d="M6.8 4.6 H17.2 L12.3 12 Z" />
+        <path d="M6.8 4.6 H17.2 L12 12 Z" />
       </clipPath>
       <clipPath id="bottomBulb">
         <path d="M6.8 19.4 H17.2 L12 12 Z" />
       </clipPath>
-      <rect x="6" y={11 - topSandHeight} width="12" height={topSandHeight} fill="#e8dfc4" clipPath="url(#topBulb)" />
+      {/* The top pile's fill rect is drawn 2 units taller than the visible
+          sand actually needs, always overshooting past the clip triangle's
+          apex at y=12 - its bottom edge used to sit flush at y=11 instead,
+          short of the apex, leaving a persistent sliver of glass showing
+          through right at the neck for as long as there was any sand left
+          up top (i.e. almost the entire round). The clip path is what
+          should draw the taper, not the rect's own bound. */}
+      <rect x="6" y={11 - topSandHeight} width="12" height={topSandHeight + 2} fill="#e8dfc4" clipPath="url(#topBulb)" />
       <rect x="6" y={20 - bottomSandHeight - 1} width="12" height={bottomSandHeight} fill="#e8dfc4" clipPath="url(#bottomBulb)" />
       {f > 0.02 && <rect x="11.4" y="11.6" width="1.2" height="0.8" fill="#e8dfc4" opacity="0.9" />}
     </svg>

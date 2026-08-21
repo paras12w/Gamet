@@ -2033,6 +2033,15 @@ button:disabled {
   width: 520px;
 }
 
+/* Rules deliberately gets its own, much wider card - a long list of
+   game-mechanic categories reads far better spread into columns across the
+   screen's width than stacked in one long vertical scroll, especially on
+   a wide/landscape iPad. */
+.parchment-card--rules {
+  width: 96vw;
+  max-width: 1100px;
+}
+
 .parchment-card h2 {
   margin: 0 0 4px;
   color: var(--gold-bright);
@@ -2053,11 +2062,23 @@ button:disabled {
 
 /* ---------- Rules ---------- */
 
+/* Categories laid out in columns instead of one long vertical stack - fills
+   the much wider .parchment-card--rules card's width instead of leaving it
+   mostly empty while the reader scrolls a narrow strip of text down the
+   middle. Falls back to a single column once the card itself gets narrow
+   enough (see the media query below) that columns would be too cramped. */
 .rules-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 24px 28px;
+  align-items: start;
   margin-top: 8px;
+}
+
+@media (max-width: 620px) {
+  .rules-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .rules-item {
@@ -2091,11 +2112,6 @@ button:disabled {
   gap: 14px;
 }
 
-.rules-category + .rules-category {
-  margin-top: 6px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border-dim);
-}
 
 .rules-category__name {
   margin: 0;

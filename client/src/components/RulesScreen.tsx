@@ -46,6 +46,18 @@ const CATEGORIES: RuleCategory[] = [
           </>
         ),
       },
+      {
+        icon: "🪙",
+        title: "How you earn coins",
+        body: (
+          <>
+            Silver trickles in from a few places: holding strictly the most territory pays out every round, certain
+            neutral keeps and kingdom sectors pay a bonus on top of a winning call, and whoever holds the most land when
+            the season ends earns a gold coin (worth 100 silver). Spend it on scouting, bridges, or the Market &mdash; see
+            "Silver, Gold & the Season" below for the full breakdown.
+          </>
+        ),
+      },
     ],
   },
   {
@@ -225,7 +237,7 @@ function RulesContent() {
 export function RulesScreen({ onContinue }: { onContinue: () => void }) {
   return (
     <div className="parchment-screen">
-      <div className="parchment-card parchment-card--wide">
+      <div className="parchment-card parchment-card--wide parchment-card--rules">
         <h2>The Laws of the Realm</h2>
         <RulesContent />
         <button className="parchment-card__cta" onClick={onContinue}>
@@ -249,7 +261,7 @@ export function RulesModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="rules-modal-overlay" onClick={onClose}>
-      <div className="parchment-card parchment-card--wide rules-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="parchment-card parchment-card--wide parchment-card--rules rules-modal" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="rules-modal__close" onClick={onClose} aria-label="Close rules">
           ×
         </button>

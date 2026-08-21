@@ -24,15 +24,17 @@ export function Timer({ snapshot }: { snapshot: GameStateSnapshot }) {
 
   return (
     <div className={urgent ? "panel timer-panel timer-panel--urgent" : "panel timer-panel"}>
-      <Hourglass fraction={fraction} size={92} />
-      <div className="timer-panel__clock">{formatClock(remaining)}</div>
-      <div className="timer-panel__meta">
-        <span>ROUND {snapshot.roundNumber}/{snapshot.sessionRounds}</span>
-        <span>SESSION #{snapshot.sessionNumber}</span>
+      <Hourglass fraction={fraction} size={44} />
+      <div className="timer-panel__body">
+        <div className="timer-panel__row">
+          <span className="timer-panel__clock">{formatClock(remaining)}</span>
+          <span>ROUND {snapshot.roundNumber}/{snapshot.sessionRounds}</span>
+          <span>SESSION #{snapshot.sessionNumber}</span>
+        </div>
+        <span className={snapshot.marketOpen ? "badge badge--open" : "badge badge--closed"}>
+          {snapshot.marketOpen ? "● MARKET OPEN" : "○ MARKET CLOSED — SIMULATED"}
+        </span>
       </div>
-      <span className={snapshot.marketOpen ? "badge badge--open" : "badge badge--closed"}>
-        {snapshot.marketOpen ? "● MARKET OPEN" : "○ MARKET CLOSED — SIMULATED"}
-      </span>
     </div>
   );
 }

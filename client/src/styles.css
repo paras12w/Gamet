@@ -180,18 +180,37 @@ h1, h2, h3 {
   text-shadow: 0 0 16px rgba(212, 168, 67, 0.3);
 }
 
+/* Horizontal, not the old tall/square stack - the round clock is meant to
+   be a quick glance, not the dominant shape of the sidebar. The hourglass
+   sits to the left at a much smaller size; the clock, round/session count,
+   and market badge share one compact column to its right. */
 .timer-panel {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
-  text-align: center;
-  padding: 20px 16px;
+  gap: 14px;
+  text-align: left;
+  padding: 12px 16px;
+}
+
+.timer-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.timer-panel__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .timer-panel__clock {
   font-family: "Cinzel", serif;
-  font-size: 2.6rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--gold-bright);
   font-variant-numeric: tabular-nums;
@@ -215,10 +234,8 @@ h1, h2, h3 {
   }
 }
 
-.timer-panel__meta {
-  display: flex;
-  gap: 12px;
-  font-size: 0.7rem;
+.timer-panel__row span:not(.timer-panel__clock) {
+  font-size: 0.68rem;
   color: var(--text-dim);
   letter-spacing: 0.5px;
   font-family: "Cinzel", serif;
@@ -697,68 +714,17 @@ h1, h2, h3 {
   line-height: 1.4;
 }
 
+/* Deliberately short: the Timer, the ticker-call card, the ActionBar's
+   button row, and the MiniMap - everything else (guild details, scouting,
+   market, rankings, chat) opens as an overlay instead of living in this
+   column, so it never needs its own scroll or a tab switcher to stay
+   readable next to (or under) the board. */
 .app__sidebar {
   width: 300px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-height: calc(100vh - 110px);
-}
-
-/* Exactly one of these shows at a time (see .sidebar-tabs) - keeps the
-   right-hand column short enough to fit a single screen instead of the
-   whole guild/ranks/chat stack piling up at once. */
-.app__sidebar > .app__pane {
-  display: none;
-  min-height: 0;
-}
-
-.app__sidebar > .app__pane.app__pane--active {
-  /* `flex: 1` (not just min-height: 0) - without a flex-grow/shrink basis
-     of its own, this pane sizes to its content and just pushes past the
-     sidebar's max-height instead of being bounded by it, so overflow-y:auto
-     below never actually engages. */
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.sidebar-tabs {
-  display: flex;
-  gap: 4px;
-  background-color: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px;
-  flex-shrink: 0;
-}
-
-.sidebar-tabs button {
-  flex: 1;
-  background: none;
-  border: none;
-  box-shadow: none;
-  text-shadow: none;
-  border-radius: 4px;
-  color: var(--text-dim);
-  padding: 8px 4px;
-  font-size: 0.72rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sidebar-tabs button:hover:not(:disabled) {
-  background: rgba(212, 168, 67, 0.08);
-}
-
-.sidebar-tabs button.active {
-  color: var(--gold-bright);
-  background: rgba(212, 168, 67, 0.14);
 }
 
 /* ---------- Panels ---------- */
@@ -810,7 +776,14 @@ h1, h2, h3 {
   background: var(--bg-deep);
   border: 3px solid var(--border);
   aspect-ratio: 1;
-  width: 100%;
+  /* Capped, not `width: 100%` - this sidebar can now be as wide as the
+     whole screen on a narrow/stacked layout (see .app__sidebar at the
+     900px breakpoint), and `aspect-ratio: 1` at that width used to turn a
+     quick-glance thumbnail into an 800px+ square that pushed everything
+     below it off-screen. A small fixed cap keeps it a thumbnail at any
+     sidebar width. */
+  width: min(100%, 220px);
+  margin: 0 auto;
   border-radius: 2px;
   overflow: hidden;
 }
@@ -896,127 +869,50 @@ h1, h2, h3 {
   color: var(--crimson);
 }
 
-/* ---------- Guild bar (compact, always visible) ---------- */
+/* ---------- Guild bar: just the ticker-call card now ---------- */
 
 .guild-bar {
   display: flex;
   flex-direction: column;
 }
 
-.guild-bar__header {
+/* ---------- Action bar: the button row that replaced the old scattered
+   scout/market/tile-bank/rankings/chat panels ---------- */
+
+.action-bar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  background: none;
-  border: none;
-  box-shadow: none;
-  text-shadow: none;
-  padding: 0 0 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--border-dim);
-  border-radius: 0;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.guild-bar__header:hover:not(:disabled) {
-  background: none;
-}
-
-.guild-bar__header:active {
-  transform: none;
-  box-shadow: none;
-}
-
-.guild-bar__title {
-  flex: 1;
-  min-width: 0;
+.action-bar__btn {
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 78px;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
-}
-
-.guild-bar__name {
-  font-family: "Cinzel", serif;
-  font-weight: 700;
-  color: var(--gold-bright);
-  font-size: 0.92rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.guild-bar__meta {
+  padding: 8px 4px;
   font-size: 0.66rem;
-  color: var(--text-dim);
-  letter-spacing: 0.3px;
-}
-
-.guild-bar__menu-hint {
-  font-size: 0.64rem;
-  color: var(--text-dim);
-  white-space: nowrap;
-  font-family: "Cinzel", serif;
-}
-
-.guild-bar__epithet {
-  color: var(--text-dim);
-  font-family: "IM Fell English", serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 0.85em;
-}
-
-.guild-bar__actions {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-.guild-bar__scout-btn {
-  flex: 1;
-  padding: 7px 10px;
-  font-size: 0.72rem;
   font-family: "Cinzel", serif;
   background: rgba(212, 168, 67, 0.1);
   border: 1px solid var(--border);
   color: var(--gold-bright);
+  white-space: nowrap;
 }
 
-.guild-bar__scout-btn:hover:not(:disabled) {
+.action-bar__btn:hover:not(:disabled) {
   background: rgba(212, 168, 67, 0.2);
 }
 
-.tile-bank {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 0.75rem;
-  color: var(--text-dim);
-}
-
-.tile-bank__place-btn {
-  padding: 5px 10px;
-  font-size: 0.68rem;
-}
-
-.tile-bank__place-btn--active {
+.action-bar__btn--active {
   background: linear-gradient(180deg, var(--crimson), #7a2320 55%, #5c1a18);
   color: var(--text);
+  border-color: var(--crimson);
 }
 
-.tile-bank__label--hot {
-  color: var(--gold-bright);
-  animation: tile-bank-hot 1.1s ease-in-out infinite;
-}
-
-@keyframes tile-bank-hot {
-  0%, 100% { text-shadow: 0 0 2px rgba(232, 196, 104, 0.4); }
-  50% { text-shadow: 0 0 8px rgba(232, 196, 104, 0.95); }
+.action-bar__icon {
+  font-size: 1.05rem;
 }
 
 /* ---------- Guild menu (toggleable drawer) ---------- */
@@ -1148,10 +1044,39 @@ h1, h2, h3 {
 .guild-menu__overview,
 .diplomacy,
 .guild-menu__chat,
-.guild-menu__members {
+.guild-menu__members,
+.forecast-tab {
   width: 100%;
   max-width: 620px;
   margin: 0 auto;
+}
+
+/* RankingsModal/RealmChatModal reuse the Guild Menu's own overlay/panel
+   shell (same look, same iPad-safe scroll fix) without needing a guild -
+   these two just skip the tab bar entirely, either laying their content out
+   side by side (Rankings) or filling the body with one single-column panel
+   (Chat). */
+.guild-menu--simple .guild-menu__body {
+  padding-top: 20px;
+}
+
+.guild-menu__body--columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .guild-menu__body--columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.guild-menu--chat .guild-menu__body {
+  max-width: 620px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .guild-menu__badges {
@@ -2474,110 +2399,23 @@ button:disabled {
   background: rgba(212, 168, 67, 0.1);
 }
 
-/* ---------- Mobile tab bar (hidden above the breakpoint) ---------- */
-
-.mobile-tabbar {
-  display: none;
-}
-
-/* One breakpoint, not two: the previous 680px cutoff for the
-   single-active-pane/tab-bar treatment left a dead zone between 680-900px
-   (exactly iPad portrait width) where the layout stacked into a column
-   (board full width, then the ENTIRE untabbed sidebar below it) without
-   switching to the mobile one-pane-at-a-time view. That made the page tall
-   enough that the tile-bank/place button and the bottom of the guild menu
-   sat below the fold - and since the board has `touch-action: none` (so a
-   pinch there doesn't leak into a page zoom), a swipe that starts on top
-   of the board is swallowed instead of scrolling the page, trapping the
-   controls below it out of reach on a touch device. Matching this
-   breakpoint to the same 900px the column layout kicks in at means any
-   viewport narrow enough to stack vertically also always shows exactly
-   one pane at a time - board OR sidebar tab, never both stacked - so
-   there's nothing below the fold to swipe past in the first place. */
+/* Below this breakpoint, .app__main stacks into a column (board on top,
+   sidebar below) instead of sitting side by side - the board needs more
+   width than a narrow/portrait screen can spare for both at once. There's
+   no tab bar or pane-switching here anymore: the sidebar is short enough
+   now (Timer + ticker card + action buttons + minimap, nothing scrollable)
+   to just sit below the board in full, every time, at any width. */
 @media (max-width: 900px) {
   .app__main {
     flex-direction: column;
-    padding-bottom: 74px;
   }
 
   .app__sidebar {
     width: 100%;
-    max-height: none;
   }
 
   .mode-grid {
     grid-template-columns: 1fr;
-  }
-
-  .app__board-pane {
-    display: none;
-  }
-
-  .app__board-pane.app__pane--active {
-    display: block;
-  }
-
-  .sidebar-tabs {
-    display: none;
-  }
-
-  /* The "Board" mobile tab still falls back to showing the guild pane
-     inside .app__sidebar (see App.tsx's `sidebarTab` fallback - it's what
-     lets the timer stay visible while looking at the map), but stacking
-     the full guild-bar/minimap pane below the board here is exactly the
-     "nothing below the fold to swipe past" case the comment above this
-     block promises isn't supposed to happen. Force it hidden while Board
-     is the active tab - the Timer (a sibling, not matched here) still
-     shows; switch to the Warband tab to reach the tile-bank/place button
-     instead of scrolling past the board for it.
-     Selector needs to match `.app__sidebar > .app__pane.app__pane--active`
-     above (3 classes) or lose the specificity tie-break outright, despite
-     coming later in the file - `display: none` from a lower-specificity
-     rule never overrides `display: flex` from a higher one. */
-  .app__sidebar--board-tab > .app__pane.app__pane--active {
-    display: none;
-  }
-
-  .mobile-tabbar {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 40;
-    background-color: var(--panel);
-    background-image: var(--brick-tex);
-    background-size: var(--brick-size);
-    background-position: var(--brick-pos);
-    border-top: 2px solid var(--border);
-  }
-
-  .mobile-tabbar button {
-    flex: 1;
-    background: none;
-    border: none;
-    box-shadow: none;
-    text-shadow: none;
-    border-radius: 0;
-    color: var(--text-dim);
-    padding: 12px 4px;
-    font-size: 0.68rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-  }
-
-  .mobile-tabbar button:hover:not(:disabled) {
-    background: rgba(212, 168, 67, 0.08);
-  }
-
-  .mobile-tabbar button .mobile-tabbar__icon {
-    font-size: 1.15rem;
-  }
-
-  .mobile-tabbar button.active {
-    color: var(--gold-bright);
   }
 
   .guild-menu-overlay {
@@ -2593,21 +2431,19 @@ button:disabled {
     border-width: 0;
   }
 
-  /* Below 900px, .app__main switches to a stacked column (board on top,
-     sidebar/Timer below), but .grid-zoom-viewport's own `100vh - 190px`
-     size cap was tuned for the SIDE-BY-SIDE desktop layout, where nothing
-     else shares the column with the board. Stacked, the Timer panel (which
-     stays visible on the Board tab) and the fixed .mobile-tabbar sit BELOW
-     the board in that same viewport height, so the 190px budget wasn't
-     nearly enough - the board rendered at its full width-bound size
-     regardless of how little vertical room was actually left, pushing the
-     Timer + tabbar below the fold and forcing the whole page to scroll.
-     This reserves roughly header+ticker (~102px) + inter-pane gap (18px) +
-     Timer panel (~240px) + reserved tabbar clearance (74px), plus a ~45px
-     safety margin for the placement-mode hint banner and text reflow, so
-     the board always shrinks to leave the Timer and tabbar on-screen
-     without scrolling. */
+  /* .grid-zoom-viewport's own `100vh - 190px` size cap was tuned for the
+     SIDE-BY-SIDE desktop layout, where nothing else shares the column with
+     the board. Stacked, the entire sidebar (Timer, ticker card, action
+     buttons, minimap) sits BELOW the board in that same viewport height, so
+     the 190px budget isn't nearly enough - the board would render at its
+     full width-bound size regardless of how little vertical room is
+     actually left, pushing the sidebar below the fold and forcing the whole
+     page to scroll. This reserves roughly header+ticker (~102px) + the
+     sidebar's own stack (Timer ~70px, ticker card ~90px, action buttons
+     ~90px, minimap ~180px, plus the gaps between them), with a safety
+     margin for text reflow and the placement-mode hint banner, so the board
+     always shrinks to leave the whole sidebar on-screen without scrolling. */
   .grid-zoom-viewport {
-    width: min(100%, calc(100vh - 480px));
+    width: min(100%, calc(100vh - 780px));
   }
 }

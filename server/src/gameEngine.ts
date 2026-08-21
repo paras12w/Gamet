@@ -980,7 +980,7 @@ export class GameEngine {
     let topPct = -Infinity;
     for (const pct of pctById.values()) if (pct > topPct) topPct = pct;
     const topGuildIds = topPct > 0 ? new Set([...pctById].filter(([, p]) => p === topPct).map(([id]) => id)) : new Set<string>();
-    const tileCountFor = (id: string) => (topGuildIds.has(id) ? CONFIG.TOP_CALLER_TILE_BONUS : 1);
+    const tileCountFor = (id: string) => (topGuildIds.has(id) ? CONFIG.TOP_CALLER_TILE_BONUS : CONFIG.BASE_TILE_GRANT);
 
     const battledGuildIds = new Set<string>();
     for (const battle of this.battles) {

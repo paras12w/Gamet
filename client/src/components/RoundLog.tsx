@@ -86,7 +86,11 @@ function flavorFor(round: RoundHistoryEntry, r: RoundResultEntry): string | null
 }
 
 export function RoundLog({ snapshot }: { snapshot: GameStateSnapshot }) {
-  const rounds = [...snapshot.roundHistory].reverse();
+  // The server's roundHistory is capped by count (ROUND_HISTORY_LIMIT), not
+  // by session - early in a fresh session that cap can still hold leftover
+  // entries from whatever session came before it. Trim to just the current
+  // session here so the feed only ever shows "this session's" calls.
+  const rounds = snapshot.roundHistory.filter((r) => r.sessionNumber === snapshot.sessionNumber).reverse();
 
   return (
     <div className="panel">

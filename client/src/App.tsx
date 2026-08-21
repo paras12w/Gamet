@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Identity } from "./types";
 import { buyBridgeTile, placeTile } from "./api";
-import { bandWord } from "./lib/warband";
 import { useGameSocket } from "./hooks/useGameSocket";
 import { useToasts } from "./hooks/useToasts";
 import { useSound } from "./hooks/useSound";
@@ -13,16 +12,13 @@ import { Timer } from "./components/Timer";
 import { GridView } from "./components/GridView";
 import { GuildBar } from "./components/GuildBar";
 import { GuildMenu, type GuildMenuTab } from "./components/GuildMenu";
-import { Leaderboard } from "./components/Leaderboard";
-import { RoundLog } from "./components/RoundLog";
+import { ActionBar } from "./components/ActionBar";
+import { RankingsModal } from "./components/RankingsModal";
+import { RealmChatModal } from "./components/RealmChatModal";
 import { ToastStack } from "./components/ToastStack";
 import { MiniMap } from "./components/MiniMap";
-import { HallOfFame } from "./components/HallOfFame";
-import { GlobalChat } from "./components/GlobalChat";
 
 const STORAGE_KEY = "gamet:identity";
-
-type MobileTab = "board" | "guild" | "rankings" | "chat";
 
 function loadIdentity(): Identity {
   try {
@@ -42,7 +38,8 @@ export default function App() {
   const [guildMenuOpen, setGuildMenuOpen] = useState(false);
   const [guildMenuTab, setGuildMenuTab] = useState<GuildMenuTab>("overview");
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<MobileTab>("board");
+  const [rankingsOpen, setRankingsOpen] = useState(false);
+  const [realmChatOpen, setRealmChatOpen] = useState(false);
   const [placementMode, setPlacementMode] = useState(false);
   const lastChatCount = useRef(0);
 
@@ -77,11 +74,7 @@ export default function App() {
   }
 
   function handleTogglePlacement() {
-    setPlacementMode((prev) => {
-      const next = !prev;
-      if (next) setMobileTab("board");
-      return next;
-    });
+    setPlacementMode((prev) => !prev);
   }
 
   const setIdentity = (next: Identity) => {
@@ -114,13 +107,7 @@ export default function App() {
   }, [chatMessages]);
 
   const inGuild = !!identity.username && !!identity.guildId;
-  const myGuild = snapshot?.guilds.find((g) => g.id === identity.guildId);
   const spectating = !!identity.username && !identity.guildId && !!identity.spectating;
-  // The sidebar always shows exactly one of these three panes. "board" (the
-  // default/mobile map view) has no matching pane, so it falls back to
-  // "guild" - keeping the map-first mobile entry point intact while giving
-  // desktop/tablet widths a sane default instead of an empty sidebar.
-  const sidebarTab = mobileTab === "board" ? "guild" : mobileTab;
 
   let screen: React.ReactNode;
   if (!identity.username) {
@@ -146,7 +133,7 @@ export default function App() {
         </header>
         {rulesModalOpen && <RulesModal onClose={() => setRulesModalOpen(false)} />}
         <main className="app__main">
-          <div className={`app__board-pane${mobileTab === "board" ? " app__pane--active" : ""}`}>
+          <div className="app__board-pane">
             <GridView
               snapshot={snapshot}
               myGuildId={identity.guildId}
@@ -155,70 +142,36 @@ export default function App() {
               onBuyBridge={handleBuyBridge}
             />
           </div>
-          <aside className={`app__sidebar${mobileTab === "board" ? " app__sidebar--board-tab" : ""}`}>
+          {/* Deliberately just the timer, the ticker call, and one row of
+              buttons - every other panel (guild details, scout/market, the
+              tile bank, rankings, chat) now opens on demand instead of
+              living here permanently, so this whole column stays short
+              enough to sit next to (or under, on a narrow screen) the board
+              without ever needing its own scroll. */}
+          <aside className="app__sidebar">
             <Timer snapshot={snapshot} />
-            <nav className="sidebar-tabs">
-              <button type="button" className={sidebarTab === "guild" ? "active" : ""} onClick={() => setMobileTab("guild")}>
-                {inGuild ? `🏳️ ${bandWord(myGuild?.members.length ?? 1)}` : "👁️ You"}
-              </button>
-              <button type="button" className={sidebarTab === "rankings" ? "active" : ""} onClick={() => setMobileTab("rankings")}>
-                🏆 Ranks
-              </button>
-              <button type="button" className={sidebarTab === "chat" ? "active" : ""} onClick={() => setMobileTab("chat")}>
-                💬 Realm Chat
-              </button>
-            </nav>
-            <div className={`app__pane${sidebarTab === "guild" ? " app__pane--active" : ""}`}>
-              {inGuild ? (
-                <>
-                  <GuildBar
-                    snapshot={snapshot}
-                    identity={identity}
-                    placementMode={placementMode}
-                    onOpenMenu={openGuildMenu}
-                    onTogglePlacement={handleTogglePlacement}
-                  />
-                  <MiniMap snapshot={snapshot} myGuildId={identity.guildId} />
-                </>
-              ) : (
-                <>
-                  <div className="panel spectator-panel">
-                    <div className="panel__header">
-                      <h2>👁️ Spectating</h2>
-                    </div>
-                    <p>You're watching the realm unfold without a banner of your own.</p>
-                    <button type="button" className="parchment-card__cta" onClick={() => setIdentity({ ...identity, spectating: false })}>
-                      Join the fray
-                    </button>
-                  </div>
-                  <MiniMap snapshot={snapshot} myGuildId={null} />
-                </>
-              )}
-            </div>
-            <div className={`app__pane${sidebarTab === "rankings" ? " app__pane--active" : ""}`}>
-              <Leaderboard snapshot={snapshot} myGuildId={identity.guildId} />
-              <RoundLog snapshot={snapshot} />
-              <HallOfFame snapshot={snapshot} />
-            </div>
-            <div className={`app__pane${sidebarTab === "chat" ? " app__pane--active" : ""}`}>
-              <GlobalChat chatMessages={chatMessages} username={identity.username} />
-            </div>
+            {inGuild ? (
+              <GuildBar snapshot={snapshot} identity={identity} />
+            ) : (
+              <div className="panel spectator-panel">
+                <p>You're watching the realm unfold without a banner of your own.</p>
+                <button type="button" className="parchment-card__cta" onClick={() => setIdentity({ ...identity, spectating: false })}>
+                  Join the fray
+                </button>
+              </div>
+            )}
+            <ActionBar
+              snapshot={snapshot}
+              identity={identity}
+              placementMode={placementMode}
+              onOpenMenu={openGuildMenu}
+              onTogglePlacement={handleTogglePlacement}
+              onOpenRankings={() => setRankingsOpen(true)}
+              onOpenRealmChat={() => setRealmChatOpen(true)}
+            />
+            <MiniMap snapshot={snapshot} myGuildId={identity.guildId} />
           </aside>
         </main>
-        <nav className="mobile-tabbar">
-          <button type="button" className={mobileTab === "board" ? "active" : ""} onClick={() => setMobileTab("board")}>
-            <span className="mobile-tabbar__icon">🗺️</span>Board
-          </button>
-          <button type="button" className={mobileTab === "guild" ? "active" : ""} onClick={() => setMobileTab("guild")}>
-            <span className="mobile-tabbar__icon">🏳️</span>{inGuild ? "Guild" : "You"}
-          </button>
-          <button type="button" className={mobileTab === "rankings" ? "active" : ""} onClick={() => setMobileTab("rankings")}>
-            <span className="mobile-tabbar__icon">🏆</span>Ranks
-          </button>
-          <button type="button" className={mobileTab === "chat" ? "active" : ""} onClick={() => setMobileTab("chat")}>
-            <span className="mobile-tabbar__icon">💬</span>Chat
-          </button>
-        </nav>
         {guildMenuOpen && inGuild && (
           <GuildMenu
             snapshot={snapshot}
@@ -232,6 +185,10 @@ export default function App() {
               setIdentity({ ...identity, guildId: null, leaderSecret: null });
             }}
           />
+        )}
+        {rankingsOpen && <RankingsModal snapshot={snapshot} myGuildId={identity.guildId} onClose={() => setRankingsOpen(false)} />}
+        {realmChatOpen && (
+          <RealmChatModal chatMessages={chatMessages} username={identity.username} onClose={() => setRealmChatOpen(false)} />
         )}
       </>
     );

@@ -26,7 +26,7 @@ import { formatCoins } from "../lib/coins";
 import { bandWord } from "../lib/warband";
 import { LiveTicker } from "./GuildBar";
 
-export type GuildMenuTab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "market" | "chat";
+export type GuildMenuTab = "overview" | "members" | "diplomacy" | "wagers" | "sectors" | "scouting" | "market" | "chat" | "forecast";
 type Tab = GuildMenuTab;
 
 // Mirrors server/src/config.ts CONFIG.SCOUT_COST / COUNCIL_SCOUT_DISCOUNT
@@ -46,6 +46,17 @@ const TITLE_MAX_LENGTH = 28;
 // gameEngine.ts KINGDOM_SECTORS. Consumer/Industrial/Index are flavor-only.
 const KINGDOM_SECTORS = ["tech", "finance", "energy"] as const;
 const SPECIALIST_THRESHOLD = 5;
+
+// Mirrors server/src/config.ts's tile-grant defaults, for the Forecast tab's
+// projection - same pattern as the other mirrored constants above.
+const BASE_TILE_GRANT = 2;
+const TOP_CALLER_TILE_BONUS = 4;
+const ROUND_LEADER_SILVER = 3;
+const STRUCTURE_INFO: Record<string, { icon: string; label: string; effect: string }> = {
+  foundry: { icon: "🏭", label: "Foundry", effect: "doubles your Tech tile bonus" },
+  vault: { icon: "🏦", label: "Vault", effect: "passive silver interest each buff tick" },
+  refinery: { icon: "⚗️", label: "Refinery", effect: "doubles your Energy silver bonus" },
+};
 
 function formatFoundedAgo(createdAt: number): string {
   const ms = Date.now() - createdAt;
@@ -268,6 +279,9 @@ export function GuildMenu({
           </button>
           <button type="button" className={tab === "sectors" ? "active" : ""} onClick={() => setTab("sectors")}>
             Kingdoms
+          </button>
+          <button type="button" className={tab === "forecast" ? "active" : ""} onClick={() => setTab("forecast")}>
+            Forecast
           </button>
           <button type="button" className={tab === "market" ? "active" : ""} onClick={() => setTab("market")}>
             Market
@@ -761,6 +775,68 @@ export function GuildMenu({
               })}
             </div>
           )}
+
+          {tab === "forecast" && (() => {
+            const heldStructures = snapshot.cells.filter((c) => c.owner === guild.id && c.resourceKind && STRUCTURE_INFO[c.resourceKind]);
+            const specialistSectors = KINGDOM_SECTORS.filter((k) => (guild.sectorWins[k] ?? 0) >= SPECIALIST_THRESHOLD);
+            const councilSeats = KINGDOM_SECTORS.filter((k) => snapshot.sectorCouncil[k] === guild.id);
+            const hasBuffs = heldStructures.length > 0 || specialistSectors.length > 0 || councilSeats.length > 0;
+            return (
+              <div className="forecast-tab">
+                <p className="wagers__disclaimer">
+                  📈 A quick read on what's working for you right now, and roughly what a winning call is worth this round.
+                </p>
+
+                <h4 className="diplomacy__section-title">Active Buffs</h4>
+                {!hasBuffs && <div className="empty-hint">No active buffs yet - win calls in a kingdom sector or hold a structure to earn some.</div>}
+                {hasBuffs && (
+                  <div className="guild-menu__badges">
+                    {specialistSectors.map((k) => (
+                      <span key={`spec-${k}`} className="achievement-badge" title={`${SPECIALIST_THRESHOLD}+ wins in ${SECTOR_INFO[k].name}`}>
+                        {SECTOR_INFO[k].icon} {SECTOR_INFO[k].name} Specialist
+                      </span>
+                    ))}
+                    {councilSeats.map((k) => (
+                      <span key={`seat-${k}`} className="achievement-badge" title="Cheaper scouting while you hold this seat">
+                        👑 {SECTOR_INFO[k].name} Council Seat
+                      </span>
+                    ))}
+                    {heldStructures.map((c) => {
+                      const info = STRUCTURE_INFO[c.resourceKind!];
+                      return (
+                        <span key={`${c.x},${c.y}`} className="achievement-badge" title={info.effect}>
+                          {info.icon} {info.label} held
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <h4 className="diplomacy__section-title">If Your Call Wins This Round</h4>
+                <div className="guild-panel__stats">
+                  <div>
+                    <span className="stat-label">Tiles banked</span>
+                    <span className="stat-value">
+                      +{BASE_TILE_GRANT}
+                      {specialistSectors.includes("tech") ? " to +3" : ""}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="stat-label">If top caller this round</span>
+                    <span className="stat-value">+{TOP_CALLER_TILE_BONUS} tiles</span>
+                  </div>
+                  <div>
+                    <span className="stat-label">Leading the realm in fields</span>
+                    <span className="stat-value">+{ROUND_LEADER_SILVER} 🪙</span>
+                  </div>
+                </div>
+                <p className="sector-card__hint">
+                  Estimates only - the exact tile/silver payout also depends on any sector or structure bonus above, and on whether
+                  another guild ties or beats your call's gain.
+                </p>
+              </div>
+            );
+          })()}
 
           {tab === "market" && (
             <div className="market-tab">

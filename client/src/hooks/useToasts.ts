@@ -10,6 +10,18 @@ export interface Toast {
 
 const HERALD_NAME = "📯 Herald";
 
+const OUTCOME_BANNER: Record<string, { text: string; kind: Toast["kind"] }> = {
+  expanded: { text: "✅ Your call paid off — new ground claimed this round!", kind: "success" },
+  no_change: { text: "➖ Held your ground this round — no gain, no loss.", kind: "info" },
+  battle_won: { text: "⚔️ Victory! You won this round's border duel.", kind: "success" },
+  battle_lost: { text: "💀 Defeated — you lost this round's border duel.", kind: "danger" },
+  battle_tied: { text: "🤝 Duel tied — no ground changed hands.", kind: "info" },
+  battle_forfeit: { text: "🏳️ No call this round — you forfeited the duel.", kind: "danger" },
+  no_proposal: { text: "😴 No call this round — you sat it out.", kind: "info" },
+  takeover_win: { text: "👑 CONQUEST — you've taken over a rival guild!", kind: "success" },
+  takeover_lost: { text: "💀 Your guild has been conquered by a rival!", kind: "danger" },
+};
+
 /** Watches the snapshot for big moments (takeovers, a season ending, your
  * own guild's round outcome) and turns them into transient toasts plus a
  * matching sound cue. Skips whatever state already existed on the first
@@ -53,6 +65,18 @@ export function useToasts(
           if (r.outcome === "expanded") playSound("expand");
           else if (r.outcome === "battle_won") playSound("battleWin");
           else if (r.outcome === "battle_lost" || r.outcome === "battle_forfeit" || r.outcome === "takeover_lost") playSound("battleLose");
+
+          // A clear, unconditional "how did I do" banner every round, on top
+          // of the more specific top-caller/tile-destroyed toasts below -
+          // those two are about a bonus or a loss to the tile bank, not
+          // "did my guild come out ahead this round," which players kept
+          // asking for a plain answer to.
+          const banner = OUTCOME_BANNER[r.outcome];
+          if (banner) {
+            const tileNote =
+              r.tileOutcome === "banked" && r.tilesGranted ? ` +${r.tilesGranted} tile${r.tilesGranted === 1 ? "" : "s"} banked.` : "";
+            fresh.push({ id: `${roundKey}-${r.guildId}-outcome`, kind: banner.kind, text: banner.text + tileNote });
+          }
 
           if (r.topCaller && r.tileOutcome) {
             fresh.push({

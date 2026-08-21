@@ -42,9 +42,15 @@ export const CONFIG = {
   // newly-earned tile instead of growing past this cap.
   MAX_PENDING_TILES: Number(process.env.MAX_PENDING_TILES ?? 5),
 
+  // Every guild with a positive-gaining call banks this many tiles for the
+  // round, whether or not they were the top caller - bumped from 1 so a
+  // 3-minute round still feels like real progress without shortening the
+  // round itself.
+  BASE_TILE_GRANT: Number(process.env.BASE_TILE_GRANT ?? 2),
+
   // The single guild whose call gained the most this round (if positive)
-  // banks this many tiles instead of the usual 1.
-  TOP_CALLER_TILE_BONUS: Number(process.env.TOP_CALLER_TILE_BONUS ?? 3),
+  // banks this many tiles instead of the base grant above.
+  TOP_CALLER_TILE_BONUS: Number(process.env.TOP_CALLER_TILE_BONUS ?? 4),
 
   // Minimum Chebyshev distance enforced between randomly-placed HQs (2x2 blocks).
   MIN_HQ_DISTANCE: Number(process.env.MIN_HQ_DISTANCE ?? 12),

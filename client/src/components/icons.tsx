@@ -377,7 +377,15 @@ export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: s
  * CENTER of the tile toward each connected edge (not a full-half-tile
  * fill flush to the border), so it reads as an actual path/trail rather
  * than a solid block, and only an isolated field (no connections) gets a
- * small dot instead. A worn-dirt texture (lighter trodden core + a few
+ * small dot instead. Whenever two ADJACENT edges are both connected (say
+ * north and east), a corner square fills the gap between their ribbons -
+ * without it, every tile embedded in a solid clump of territory (which is
+ * the common case right around an HQ, not a thin winding path) rendered as
+ * a plus-sign with its four corners cut out, and a whole clump of those
+ * side by side reads as a field of disconnected, oddly-shaped blobs rather
+ * than one contiguous settlement. A tile connected on all four sides fills
+ * every corner too, i.e. the whole tile, which is exactly right for solid
+ * interior territory. A worn-dirt texture (lighter trodden core + a few
  * darker pebble speckles, seeded per-tile) replaces the old flat single
  * color so it reads as an actual path rather than a paint swatch. Every
  * edge-reaching rect (and the whole isolated-dot viewBox) bleeds 1 unit
@@ -402,6 +410,10 @@ export function RoadTile({ n, s, e, w, seed = 0 }: { n: boolean; s: boolean; e: 
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: "-0.5px" }} aria-hidden="true">
       {n && <rect x="6" y="-1" width="12" height="14" fill={ROAD_COLOR} />}
       {s && <rect x="6" y="11" width="12" height="14" fill={ROAD_COLOR} />}
+      {n && e && <rect x="18" y="-1" width="7" height="7" fill={ROAD_COLOR} />}
+      {n && w && <rect x="-1" y="-1" width="7" height="7" fill={ROAD_COLOR} />}
+      {s && e && <rect x="18" y="18" width="7" height="7" fill={ROAD_COLOR} />}
+      {s && w && <rect x="-1" y="18" width="7" height="7" fill={ROAD_COLOR} />}
       {e && <rect x="11" y="6" width="14" height="12" fill={ROAD_COLOR} />}
       {w && <rect x="-1" y="6" width="14" height="12" fill={ROAD_COLOR} />}
       <rect x="6" y="6" width="12" height="12" fill={ROAD_COLOR} />

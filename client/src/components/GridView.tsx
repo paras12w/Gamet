@@ -136,6 +136,33 @@ export function GridView({
   // label and the --zoomed class) just follows along, batched to once per
   // animation frame instead of once per event.
   const zoomRafPending = useRef(false);
+  // Reading layout geometry (getBoundingClientRect/clientWidth/clientHeight)
+  // forces the browser to synchronously flush any pending style changes and
+  // recompute layout for the whole page before it can answer - fine once,
+  // but doing it on EVERY pointermove during an active pinch/drag (which
+  // can fire 60-120 times/sec on a touchscreen) repeatedly blocks the main
+  // thread and is what made zooming lag the whole device, not just the
+  // board. Cache the viewport's rect here instead, refreshed only when it
+  // can actually change (mount, resize, and at the start of each gesture),
+  // and read every event.
+  const viewportRectRef = useRef<DOMRect | null>(null);
+
+  function measureViewportRect() {
+    if (viewportRef.current) viewportRectRef.current = viewportRef.current.getBoundingClientRect();
+  }
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    measureViewportRect();
+    const ro = new ResizeObserver(measureViewportRect);
+    ro.observe(el);
+    window.addEventListener("resize", measureViewportRect);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measureViewportRect);
+    };
+  }, []);
 
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 4;
@@ -146,13 +173,13 @@ export function GridView({
 
   /** Keeps the pan offset from ever revealing empty space beyond the
    * content's edge - the content (unscaled size = the viewport's own
-   * clientWidth/clientHeight, since .grid-view fills the viewport at
-   * zoom 1) can only be dragged until its far edge reaches the viewport's
-   * near edge, in either direction. */
+   * width/height, since .grid-view fills the viewport at zoom 1) can only
+   * be dragged until its far edge reaches the viewport's near edge, in
+   * either direction. Takes the cached rect rather than measuring live -
+   * see viewportRectRef above. */
   function clampPan(pan: { x: number; y: number }, z: number): { x: number; y: number } {
-    const el = viewportRef.current;
-    const w = el?.clientWidth ?? 0;
-    const h = el?.clientHeight ?? 0;
+    const w = viewportRectRef.current?.width ?? 0;
+    const h = viewportRectRef.current?.height ?? 0;
     const minX = w * (1 - z);
     const minY = h * (1 - z);
     return { x: Math.min(0, Math.max(minX, pan.x)), y: Math.min(0, Math.max(minY, pan.y)) };
@@ -211,6 +238,7 @@ export function GridView({
 
     if (activePointers.current.size === 2) {
       dragState.current = null;
+      measureViewportRect();
       const pts = [...activePointers.current.values()];
       pinchDist.current = dist(pts[0], pts[1]);
       return;
@@ -229,6 +257,7 @@ export function GridView({
       lastTap.current = { x: e.clientX, y: e.clientY, at: now };
 
       if (zoomRef.current <= 1 || (e.pointerType === "mouse" && e.button !== 0)) return;
+      measureViewportRect();
       dragState.current = { x: e.clientX, y: e.clientY, panX: panRef.current.x, panY: panRef.current.y, dragged: false };
     }
   }
@@ -238,12 +267,11 @@ export function GridView({
     activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (activePointers.current.size === 2 && pinchDist.current) {
-      const el = viewportRef.current;
-      if (!el) return;
+      const rect = viewportRectRef.current;
+      if (!rect) return;
       const pts = [...activePointers.current.values()];
       const newDist = dist(pts[0], pts[1]);
       const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
-      const rect = el.getBoundingClientRect();
       zoomAt(zoomRef.current * (newDist / pinchDist.current), mid.x - rect.left, mid.y - rect.top);
       pinchDist.current = newDist;
       return;
@@ -282,7 +310,9 @@ export function GridView({
     function onWheel(e: WheelEvent) {
       if (!e.ctrlKey && !e.metaKey) return; // plain scroll still just pans/scrolls normally
       e.preventDefault();
-      const rect = el!.getBoundingClientRect();
+      if (!viewportRectRef.current) measureViewportRect();
+      const rect = viewportRectRef.current;
+      if (!rect) return;
       const factor = Math.exp(-e.deltaY * 0.01);
       zoomAt(zoomRef.current * factor, e.clientX - rect.left, e.clientY - rect.top);
     }

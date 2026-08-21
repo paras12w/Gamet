@@ -2,8 +2,6 @@
 // heavy paths) so they stay crisp at grid-cell scale and can be recolored
 // per guild via a `color` prop.
 
-const ROAD_COLOR = "#7a6446";
-
 /** A river tile: unclaimable water, rendered as the cell's own background
  * plus a couple of gentle wave strokes for texture. The wave strokes run
  * ALONG the river's actual flow direction (a river running top-to-bottom
@@ -253,7 +251,7 @@ export function TreeIcon({ size = 14, seed = 0 }: { size?: number; seed?: number
       <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `translateX(${lean}%)` }}>
         <rect x="11" y="16" width="2" height="6" fill="#5c4327" />
         <path d="M12 2 L18 12 H6 Z" fill="#3f6b3f" />
-        <path d="M12 6 L17.5 15 H6.5 Z" fill="#487a48" />
+        <path className="decor-detail" d="M12 6 L17.5 15 H6.5 Z" fill="#487a48" />
         <path d="M12 10 L17 18 H7 Z" fill="#3f6b3f" />
       </svg>
     );
@@ -270,6 +268,7 @@ export function TreeIcon({ size = 14, seed = 0 }: { size?: number; seed?: number
         strokeWidth="0.4"
       />
       <path
+        className="decor-detail"
         d="M8 10 Q8 6 12 6.5 Q15 5 17.5 7.5 Q19 9.5 17 12 Q17 14.5 13 14 Q8.5 15 7 12 Q6.5 10.5 8 10 Z"
         fill="#487a48"
         opacity="0.85"
@@ -286,7 +285,7 @@ export function RockIcon({ size = 12, seed = 0 }: { size?: number; seed?: number
       <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${rot}deg)` }}>
         <ellipse cx="12" cy="18.5" rx="9" ry="1.5" fill="#000" opacity="0.17" />
         <path d="M3 18 L5 12 L9 9 L9 13 L13 8 L18 10 L20 15 L19 18 Z" fill="#8a8577" stroke="#5c584c" strokeWidth="0.6" />
-        <path d="M9 9 L13 8 L14 11 L10 13 Z" fill="#a19c8c" />
+        <path className="decor-detail" d="M9 9 L13 8 L14 11 L10 13 Z" fill="#a19c8c" />
       </svg>
     );
   }
@@ -294,7 +293,7 @@ export function RockIcon({ size = 12, seed = 0 }: { size?: number; seed?: number
     <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${rot}deg)` }}>
       <ellipse cx="12" cy="19" rx="9" ry="1.6" fill="#000" opacity="0.18" />
       <path d="M4 17 L6 10 L11 6 L17 8 L20 14 L18 18 L6 18 Z" fill="#8a8577" stroke="#5c584c" strokeWidth="0.6" />
-      <path d="M6 10 L11 6 L13 9 L9 13 Z" fill="#a19c8c" />
+      <path className="decor-detail" d="M6 10 L11 6 L13 9 L9 13 Z" fill="#a19c8c" />
     </svg>
   );
 }
@@ -313,29 +312,11 @@ export function BushIcon({ size = 11, seed = 0 }: { size?: number; seed?: number
         strokeWidth="0.4"
       />
       <path
+        className="decor-detail"
         d="M7 14 Q7 10.5 11 10.5 Q13 8.5 16 10 Q18.5 10.5 18 14 Q19 16.5 15.5 17 Q11 18 8 16 Q6 15.5 7 14 Z"
         fill="#487a48"
         opacity="0.85"
       />
-    </svg>
-  );
-}
-
-/** A wandering villager: no weapon or armor, just a hood and tunic colored
- * per guild - flavor for a settled field, not a soldier standing watch. Legs
- * spread in a walking stride; the actual "walking" motion is a CSS animation
- * applied to the wrapping element (see .villager-wrap), not this SVG. */
-export function VillagerIcon({ color, size = 16 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <ellipse cx="12" cy="21.5" rx="5" ry="1" fill="#000" opacity="0.18" />
-      <path d="M9 17.5 L7.5 22" stroke="#5c4a2e" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M14 17.5 L16 21.5" stroke="#5c4a2e" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M9 9.5 H15 L14.2 18 C14.1 18.8 13.2 19.3 12 19.3 C10.8 19.3 9.9 18.8 9.8 18 Z" fill={color} stroke="#000" strokeOpacity="0.3" strokeWidth="0.4" />
-      <path d="M8.6 10.5 L6.8 14.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M15.4 10.5 L17 13.8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="12" cy="6.6" r="2.7" fill="#e0b28a" />
-      <path d="M8.9 6.8 A3.1 3.1 0 0 1 15.1 6.8 L14.6 5.4 C14.2 4.2 13.2 3.6 12 3.6 C10.8 3.6 9.8 4.2 9.4 5.4 Z" fill="#6b4a2a" opacity="0.85" />
     </svg>
   );
 }
@@ -386,16 +367,38 @@ export function FlagBadge({ color, decal, size = 22 }: { color: string; decal: s
  * -0.5px CSS inset on the SVG itself, so two adjacent tiles' fills always
  * overlap by a hair instead of a subpixel grid-track rounding difference
  * leaving a hairline of grass showing through. */
+// Four irregular cobblestone blocks, each with its own rounded corners and a
+// thin mortar gap around it - laid out the same way on every tile (just a
+// per-tile size/offset jitter from `seed`) rather than shaped by neighbor
+// connectivity. That's deliberate: a connectivity-aware ribbon is exactly
+// what used to render as a disconnected, off-center blotch on any tile with
+// only one or two road neighbors (see the note above this replaced). Rounded
+// stone corners read as "worn cobblestone" on every tile regardless of its
+// neighbors, so there's no directional logic left to get wrong.
 export function RoadTile({ seed = 0 }: { seed?: number }) {
-  const jitter = seed % 5;
+  const j = seed % 7;
+  const stones: { x: number; y: number; w: number; h: number; shade: number }[] = [
+    { x: 1, y: 1, w: 10 + (j % 3), h: 9 + (j % 2), shade: 0 },
+    { x: 13 + (j % 2), y: 1, w: 10 - (j % 3), h: 10 + (j % 2), shade: 1 },
+    { x: 1, y: 12 + (j % 2), w: 9 + (j % 2), h: 11 - (j % 2), shade: 2 },
+    { x: 11 + (j % 3), y: 13, w: 12 - (j % 2), h: 10, shade: 1 },
+  ];
+  const shades = ["#8b7f6e", "#7d7263", "#95897a"];
   return (
     <svg width="100%" height="100%" viewBox="0 0 24 24" style={{ position: "absolute", inset: "-0.5px" }} aria-hidden="true">
-      <rect x="-1" y="-1" width="26" height="26" fill={ROAD_COLOR} />
-      <rect x="3" y="3" width="18" height="18" fill="#8a7050" opacity="0.25" />
-      <rect x="0" y="0" width="24" height="24" fill="none" stroke="#4a3a24" strokeWidth="1" opacity="0.25" />
-      <circle cx={7 + jitter * 0.6} cy={16 - jitter * 0.5} r="0.8" fill="#4a3a24" opacity="0.5" />
-      <circle cx={17 - jitter * 0.5} cy={8 + jitter * 0.5} r="0.7" fill="#4a3a24" opacity="0.4" />
-      <circle cx={12 + jitter * 0.4} cy={12 - jitter * 0.4} r="0.6" fill="#4a3a24" opacity="0.4" />
+      {/* Base bleeds 1 unit past the viewBox (paired with the -0.5px CSS
+          inset above) so adjacent tiles' fills always overlap by a hair
+          instead of a subpixel grid-track rounding difference leaving a
+          hairline of grass showing through - same overscan trick as before,
+          just a stone tone (#6d6355) instead of packed dirt. */}
+      <rect x="-1" y="-1" width="26" height="26" fill="#6d6355" />
+      {stones.map((s, i) => (
+        <rect key={i} x={s.x} y={s.y} width={s.w} height={s.h} rx="2.4" ry="2.4" fill={shades[s.shade]} opacity="0.9" />
+      ))}
+      {/* A soft vignette at this tile's own four corners - the "slight
+          curve" at a road's turns without needing to know which neighbors
+          are also roads. */}
+      <rect x="0" y="0" width="24" height="24" rx="3" ry="3" fill="none" stroke="#3d362b" strokeWidth="1.4" opacity="0.22" />
     </svg>
   );
 }

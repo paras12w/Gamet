@@ -383,13 +383,12 @@ h1, h2, h3 {
 
 /* Applied to .grid-view for the brief window an active pinch/drag/wheel
    gesture is in progress (toggled directly via ref, not React state - see
-   GridView.tsx). The villager walk-cycle, the eligible-tile pulse, and the
-   battle pulse are all infinite CSS animations, each forcing a style
-   recalculation on their own timer regardless of the gesture - pausing
-   them for the ~1-2 seconds a gesture actually lasts is invisible to the
-   eye but frees up CPU cycles for exactly the moment the gesture's own
-   compositing work needs them most. */
-.grid-view--gesturing .villager-wrap,
+   GridView.tsx). The eligible-tile pulse and the battle pulse are both
+   infinite CSS animations, each forcing a style recalculation on their own
+   timer regardless of the gesture - pausing them for the ~1-2 seconds a
+   gesture actually lasts is invisible to the eye but frees up CPU cycles
+   for exactly the moment the gesture's own compositing work needs them
+   most. */
 .grid-view--gesturing .grid-cell--eligible,
 .grid-view--gesturing .grid-cell--battle {
   animation-play-state: paused;
@@ -1667,8 +1666,27 @@ h1, h2, h3 {
 
 /* ---------- Day/night board tint ---------- */
 
-.grid-view--night {
+/* Lives on .grid-zoom-viewport (the static outer box), NOT on .grid-view
+   (the element that's actually being panned/scaled every gesture frame) -
+   `filter` and an animated `transform` fighting over the same element force
+   the browser to re-rasterize the filtered result on every frame instead of
+   just recompositing a cached bitmap, which is the same class of cost the
+   placement-mode dimming used to have before that was split into its own
+   overlay. Keeping the filter on a plain, unanimated ancestor lets its
+   filtered layer stay cached while the pan/zoom transform underneath it
+   animates independently. */
+.grid-zoom-viewport--night {
   filter: brightness(0.78) saturate(0.75) hue-rotate(-8deg);
+}
+
+/* Level-of-detail: past this zoom threshold (see LOD_ZOOM_THRESHOLD in
+   GridView.tsx), decorations drop their secondary "facet" detail path and
+   just show their base silhouette - toggled by directly mutating this
+   class on the DOM during a gesture, not via React state, so it costs
+   nothing extra to check while zooming (see applyTransform). Zoomed out is
+   exactly when the most decorated tiles are visible on screen at once. */
+.grid-view--far .decor-detail {
+  display: none;
 }
 
 .ticker-form label {
@@ -2309,36 +2327,6 @@ button:disabled {
   color: var(--text-dim);
 }
 
-/* ---------- Wandering villagers ---------- */
-
-/* A subtle in-place shuffle (not real tile-to-tile movement) - cheap, pure
-   CSS transform so it costs nothing extra to render across a few hundred
-   owned fields, but reads as a living settlement instead of a static
-   sentry standing at attention on every single tile. */
-.villager-wrap {
-  /* Without an explicit `position`, this div paints in an EARLIER CSS
-     stacking phase than the road/river tiles' `position: absolute` SVGs,
-     regardless of DOM order - a plain static box always paints before any
-     positioned sibling with z-index:auto. That put every villager visibly
-     underneath the road it's supposed to be standing on. `position:
-     relative` (no z-index needed) moves it into the same stacking phase as
-     those SVGs, where DOM order (this div comes after them) decides who's
-     on top. */
-  position: relative;
-  animation-name: villager-walk;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-
-@keyframes villager-walk {
-  0%,
-  100% {
-    transform: translateX(-2.5px) scaleX(1);
-  }
-  50% {
-    transform: translateX(2.5px) scaleX(-1);
-  }
-}
 
 /* ---------- Mode select ---------- */
 

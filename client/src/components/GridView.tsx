@@ -17,7 +17,6 @@ import {
   RuinsIcon,
   TreeIcon,
   VaultIcon,
-  VillagerIcon,
   WatchtowerIcon,
 } from "./icons";
 import { formatCoins } from "../lib/coins";
@@ -185,9 +184,18 @@ export function GridView({
     return { x: Math.min(0, Math.max(minX, pan.x)), y: Math.min(0, Math.max(minY, pan.y)) };
   }
 
+  // Level-of-detail threshold for decorations (tree/rock/bush secondary
+  // facet paths - see .grid-view--far in styles.css) - toggled the same
+  // imperative way as the transform itself, not via React state, so
+  // crossing it mid-zoom never touches the ~2500-cell render tree. Zoomed
+  // out past 1x is exactly when there are the most decorated tiles visible
+  // on screen at once and the least benefit to their extra detail, so it's
+  // also where trimming pays off most.
+  const LOD_ZOOM_THRESHOLD = 1;
   function applyTransform() {
     if (gridInnerRef.current) {
       gridInnerRef.current.style.transform = `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
+      gridInnerRef.current.classList.toggle("grid-view--far", zoomRef.current <= LOD_ZOOM_THRESHOLD);
     }
   }
 
@@ -393,7 +401,6 @@ export function GridView({
         !!myGuildId && !!cell.river && cell.owner === null && neighborKeys.some((n) => cellsByKey.get(n)?.owner === myGuildId);
 
       const hasRoadOrRiver = !!cell.river || (!!owner && cell.type === "empty");
-      const showVillager = !!owner && cell.type === "empty" && !cell.river && hash(cell.x + 41, cell.y + 17) < 38;
 
       const clickable = isKeep || isHq || !!cell.river;
 
@@ -419,8 +426,16 @@ export function GridView({
             isKeep ? "grid-cell--castle" : "",
             cell.type === "hq" ? "grid-cell--hq" : "",
             inBattle ? "grid-cell--battle" : "",
-            isMine ? "grid-cell--mine" : "",
-            owner && !isMine ? "grid-cell--rival" : "",
+            // Ownership border is a castle-only signal (HQ via .hq-castle-wrap,
+            // conquered keeps via this box-shadow) - plain claimed fields
+            // (roads) intentionally carry none of it. Every claimed road tile
+            // used to get this same border since `isMine`/`owner` are true for
+            // ANY owned cell regardless of type, not just castles - across a
+            // mature territory that's a LOT of white/black-bordered squares,
+            // which is what read as "the roads have borders now" once zoomed
+            // in enough to actually see them.
+            isKeep && isMine ? "grid-cell--mine" : "",
+            isKeep && owner && !isMine ? "grid-cell--rival" : "",
             clickable ? "grid-cell--clickable" : "",
             isBridgeBuyable ? "grid-cell--eligible" : "",
             cell.river ? "grid-cell--river" : "",
@@ -468,17 +483,6 @@ export function GridView({
           )}
 
           {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
-          {showVillager && (
-            <div
-              className="villager-wrap"
-              style={{
-                animationDuration: `${2.6 + (hash(cell.x, cell.y) % 14) / 10}s`,
-                animationDelay: `-${(hash(cell.y, cell.x) % 30) / 10}s`,
-              }}
-            >
-              <VillagerIcon color={owner!.color} size={10} />
-            </div>
-          )}
         </div>
       );
     });
@@ -596,7 +600,7 @@ export function GridView({
       )}
       <div
         ref={viewportRef}
-        className={`grid-zoom-viewport${zoom > 1 ? " grid-zoom-viewport--zoomed" : ""}`}
+        className={`grid-zoom-viewport${zoom > 1 ? " grid-zoom-viewport--zoomed" : ""}${snapshot.marketOpen ? "" : " grid-zoom-viewport--night"}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -604,7 +608,7 @@ export function GridView({
       >
       <div
         ref={gridInnerRef}
-        className={`grid-view${snapshot.marketOpen ? "" : " grid-view--night"}`}
+        className={`grid-view${zoom <= LOD_ZOOM_THRESHOLD ? " grid-view--far" : ""}`}
         style={{
           // minmax(0, 1fr), NOT bare 1fr: a plain `1fr` track can only shrink
           // to its content's min-content size, and several cell decorations

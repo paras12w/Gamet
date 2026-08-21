@@ -433,6 +433,12 @@ export class GameEngine {
       title: "",
       tilePurchasesThisSession: 0,
     };
+    if (this.isGodMode(guild)) {
+      // Show the testing allowlist's unlimited status immediately, rather
+      // than only once they've won a round or earned silver the normal way.
+      guild.tokens = 999_999;
+      guild.pendingTiles = CONFIG.MAX_PENDING_TILES;
+    }
     this.guilds.set(guild.id, guild);
     this.placeHq(guild);
 
@@ -594,7 +600,7 @@ export class GameEngine {
     if (!target || !target.alive) return { ok: false, error: "Target guild not found" };
     if (target.id === guild.id) return { ok: false, error: "A guild cannot wager against itself" };
     if (!Number.isInteger(amount) || amount <= 0) return { ok: false, error: "Wager amount must be a positive whole number of gold" };
-    if (amount > guild.tokens) return { ok: false, error: "You don't have that much gold" };
+    if (!this.isGodMode(guild) && amount > guild.tokens) return { ok: false, error: "You don't have that much gold" };
     const existing = this.wagers.some(
       (w) => w.status === "pending" && ((w.fromGuild === guild.id && w.toGuild === target.id) || (w.fromGuild === target.id && w.toGuild === guild.id))
     );
@@ -615,7 +621,7 @@ export class GameEngine {
     const from = this.guilds.get(wager.fromGuild);
     if (!from) return { ok: false, error: "Challenger no longer exists" };
     if (accept) {
-      if (guild.tokens < wager.amount) return { ok: false, error: "You don't have enough gold to cover this wager" };
+      if (!this.isGodMode(guild) && guild.tokens < wager.amount) return { ok: false, error: "You don't have enough gold to cover this wager" };
       wager.status = "accepted";
       wager.settleRound = this.roundNumber;
       this.postSystemMessage(guild.id, `🪙 Wager accepted - ${wager.amount} gold rides on this round's calls against ${from.name}.`);
@@ -657,9 +663,11 @@ export class GameEngine {
     if (!target.proposal) return { ok: false, error: "That guild hasn't called a ticker yet this round" };
     if (target.scoutedBy.has(guild.id)) return { ok: false, error: "You've already scouted that guild this round" };
     const scoutCost = Math.max(1, CONFIG.SCOUT_COST - (this.holdsAnyCouncilSeat(guild.id) ? CONFIG.COUNCIL_SCOUT_DISCOUNT : 0));
-    if (guild.tokens < scoutCost) return { ok: false, error: "Not enough silver to scout" };
-    guild.tokens -= scoutCost;
-    updateGuildTokens(guild.id, guild.tokens);
+    if (!this.isGodMode(guild) && guild.tokens < scoutCost) return { ok: false, error: "Not enough silver to scout" };
+    if (!this.isGodMode(guild)) {
+      guild.tokens -= scoutCost;
+      updateGuildTokens(guild.id, guild.tokens);
+    }
     target.scoutedBy.add(guild.id);
     this.postSystemMessage(
       guild.id,
@@ -691,10 +699,12 @@ export class GameEngine {
       const fromWins = pTo === null || (pFrom !== null && pFrom > pTo);
       const winner = fromWins ? from : to;
       const loser = fromWins ? to : from;
-      const amount = Math.min(wager.amount, loser.tokens);
-      loser.tokens -= amount;
+      const amount = this.isGodMode(loser) ? wager.amount : Math.min(wager.amount, loser.tokens);
+      if (!this.isGodMode(loser)) {
+        loser.tokens -= amount;
+        updateGuildTokens(loser.id, loser.tokens);
+      }
       winner.tokens += amount;
-      updateGuildTokens(loser.id, loser.tokens);
       updateGuildTokens(winner.id, winner.tokens);
       this.postSystemMessage(winner.id, `🪙 We won the wager against ${loser.name} - ${amount} gold claimed!`);
       this.postSystemMessage(loser.id, `🪙 We lost the wager against ${winner.name} - ${amount} gold paid out.`);
@@ -769,6 +779,14 @@ export class GameEngine {
    * places banked tiles later via placeTile(), wherever they like next to
    * their territory. */
   private grantTile(guild: Guild, count = 1): "banked" | "destroyed" {
+    if (this.isGodMode(guild)) {
+      // The tile bank cap doesn't apply to a god-mode guild (see placeTile),
+      // so there's nothing to actually bank here - just keep the display
+      // topped up instead of reporting tiles "destroyed" for overflowing a
+      // cap that isn't real for this guild.
+      guild.pendingTiles = CONFIG.MAX_PENDING_TILES;
+      return "banked";
+    }
     const capacity = CONFIG.MAX_PENDING_TILES - guild.pendingTiles;
     if (capacity <= 0) return "destroyed";
     const granted = Math.min(count, capacity);
@@ -863,6 +881,15 @@ export class GameEngine {
     return Math.sqrt(Math.max(1, memberCount));
   }
 
+  /** Testing/debug allowlist (see CONFIG.GOD_MODE_USERNAMES): a guild led
+   * by one of these usernames never spends silver and never runs out of
+   * banked tiles. Checked at every spend/deduct site instead of just
+   * short-circuiting the currency field itself, so the guild's displayed
+   * silver total still reflects everything it has earned. */
+  private isGodMode(guild: Guild): boolean {
+    return CONFIG.GOD_MODE_USERNAMES.includes(guild.leaderUsername.toLowerCase());
+  }
+
   /** Leader spends one banked tile to claim a specific empty field
    * adjacent to their existing territory. Can be called any time, not just
    * during a round. */
@@ -870,7 +897,8 @@ export class GameEngine {
     const guild = this.guilds.get(guildId);
     if (!guild || !guild.alive) return { ok: false, error: "Guild not found" };
     if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can place a tile" };
-    if (guild.pendingTiles <= 0) return { ok: false, error: "No banked tiles to place" };
+    const godMode = this.isGodMode(guild);
+    if (!godMode && guild.pendingTiles <= 0) return { ok: false, error: "No banked tiles to place" };
     const cell = this.grid.get(key);
     if (!cell) return { ok: false, error: "That field doesn't exist" };
     if (cell.owner !== null) return { ok: false, error: "That field is already claimed" };
@@ -879,7 +907,7 @@ export class GameEngine {
     if (!adjacent) return { ok: false, error: "Must place next to your existing territory" };
     guild.squares.add(key);
     this.claimCell(guild, cell);
-    guild.pendingTiles -= 1;
+    if (!godMode) guild.pendingTiles -= 1;
     this.emitUpdate();
     return { ok: true };
   }
@@ -899,11 +927,13 @@ export class GameEngine {
     if (cell.owner !== null) return { ok: false, error: "That crossing is already bridged" };
     const adjacent = neighborsOf(key).some((n) => this.grid.get(n)?.owner === guild.id);
     if (!adjacent) return { ok: false, error: "Must bridge next to your existing territory" };
-    if (guild.tokens < CONFIG.BRIDGE_TILE_COST) {
+    if (!this.isGodMode(guild) && guild.tokens < CONFIG.BRIDGE_TILE_COST) {
       return { ok: false, error: `Not enough silver - a bridge tile costs ${CONFIG.BRIDGE_TILE_COST}` };
     }
-    guild.tokens -= CONFIG.BRIDGE_TILE_COST;
-    updateGuildTokens(guild.id, guild.tokens);
+    if (!this.isGodMode(guild)) {
+      guild.tokens -= CONFIG.BRIDGE_TILE_COST;
+      updateGuildTokens(guild.id, guild.tokens);
+    }
     guild.squares.add(key);
     cell.owner = guild.id;
     this.postSystemMessage(guild.id, `🌉 Built a bridge tile for ${CONFIG.BRIDGE_TILE_COST} silver.`);
@@ -1090,7 +1120,7 @@ export class GameEngine {
             nearest = guild;
           }
         }
-        if (nearest && nearest.tokens > 0) {
+        if (nearest && nearest.tokens > 0 && !this.isGodMode(nearest)) {
           const raided = Math.min(CONFIG.BANDIT_RAID_SILVER, nearest.tokens);
           nearest.tokens -= raided;
           updateGuildTokens(nearest.id, nearest.tokens);
@@ -1277,12 +1307,15 @@ export class GameEngine {
   buyTile(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
     const guild = this.requireLeader(guildId, leaderSecret);
     if (!("id" in guild)) return guild;
-    if (guild.pendingTiles >= CONFIG.MAX_PENDING_TILES) return { ok: false, error: "Your tile bank is already full" };
+    const godMode = this.isGodMode(guild);
+    if (!godMode && guild.pendingTiles >= CONFIG.MAX_PENDING_TILES) return { ok: false, error: "Your tile bank is already full" };
     const cost = CONFIG.BUY_TILE_BASE_COST + guild.tilePurchasesThisSession * CONFIG.BUY_TILE_COST_STEP;
-    if (guild.tokens < cost) return { ok: false, error: `Not enough silver - a field costs ${cost} right now` };
-    guild.tokens -= cost;
-    updateGuildTokens(guild.id, guild.tokens);
-    guild.tilePurchasesThisSession += 1;
+    if (!godMode && guild.tokens < cost) return { ok: false, error: `Not enough silver - a field costs ${cost} right now` };
+    if (!godMode) {
+      guild.tokens -= cost;
+      updateGuildTokens(guild.id, guild.tokens);
+      guild.tilePurchasesThisSession += 1;
+    }
     this.grantTile(guild, 1);
     this.postSystemMessage(guild.id, `🎒 Bought a field outright for ${cost} silver.`);
     this.awardAchievement(guild, "market_patron");
@@ -1297,9 +1330,11 @@ export class GameEngine {
     if (!("id" in guild)) return guild;
     const targets = this.livingGuilds().filter((g) => g.id !== guild.id && g.proposal && !g.scoutedBy.has(guild.id));
     if (targets.length === 0) return { ok: false, error: "No rival calls left to reveal this round" };
-    if (guild.tokens < CONFIG.SPYGLASS_COST) return { ok: false, error: `Not enough silver - a Spyglass costs ${CONFIG.SPYGLASS_COST}` };
-    guild.tokens -= CONFIG.SPYGLASS_COST;
-    updateGuildTokens(guild.id, guild.tokens);
+    if (!this.isGodMode(guild) && guild.tokens < CONFIG.SPYGLASS_COST) return { ok: false, error: `Not enough silver - a Spyglass costs ${CONFIG.SPYGLASS_COST}` };
+    if (!this.isGodMode(guild)) {
+      guild.tokens -= CONFIG.SPYGLASS_COST;
+      updateGuildTokens(guild.id, guild.tokens);
+    }
     for (const target of targets) target.scoutedBy.add(guild.id);
     this.postSystemMessage(guild.id, `🔭 Spyglass revealed ${targets.length} rival call${targets.length === 1 ? "" : "s"} this round.`);
     this.awardAchievement(guild, "market_patron");
@@ -1312,9 +1347,11 @@ export class GameEngine {
   buyHeraldFavor(guildId: string, leaderSecret: string): { ok: true } | { ok: false; error: string } {
     const guild = this.requireLeader(guildId, leaderSecret);
     if (!("id" in guild)) return guild;
-    if (guild.tokens < CONFIG.HERALD_FAVOR_COST) return { ok: false, error: `Not enough silver - a Herald's Favor costs ${CONFIG.HERALD_FAVOR_COST}` };
-    guild.tokens -= CONFIG.HERALD_FAVOR_COST;
-    updateGuildTokens(guild.id, guild.tokens);
+    if (!this.isGodMode(guild) && guild.tokens < CONFIG.HERALD_FAVOR_COST) return { ok: false, error: `Not enough silver - a Herald's Favor costs ${CONFIG.HERALD_FAVOR_COST}` };
+    if (!this.isGodMode(guild)) {
+      guild.tokens -= CONFIG.HERALD_FAVOR_COST;
+      updateGuildTokens(guild.id, guild.tokens);
+    }
     let color = guild.color;
     let flagDecal = guild.flagDecal;
     for (let attempt = 0; attempt < 20 && color === guild.color && flagDecal === guild.flagDecal; attempt++) {
@@ -1337,9 +1374,11 @@ export class GameEngine {
     if (!("id" in guild)) return guild;
     const clean = title.trim().slice(0, CONFIG.TITLE_MAX_LENGTH);
     if (!clean) return { ok: false, error: "Enter a title first" };
-    if (guild.tokens < CONFIG.TITLE_COST) return { ok: false, error: `Not enough silver - a Guild Title costs ${CONFIG.TITLE_COST}` };
-    guild.tokens -= CONFIG.TITLE_COST;
-    updateGuildTokens(guild.id, guild.tokens);
+    if (!this.isGodMode(guild) && guild.tokens < CONFIG.TITLE_COST) return { ok: false, error: `Not enough silver - a Guild Title costs ${CONFIG.TITLE_COST}` };
+    if (!this.isGodMode(guild)) {
+      guild.tokens -= CONFIG.TITLE_COST;
+      updateGuildTokens(guild.id, guild.tokens);
+    }
     guild.title = clean;
     updateGuildTitle(guild.id, guild.title);
     this.postSystemMessage(guild.id, `🏷️ Our guild is now known as "${guild.name}, ${clean}."`);

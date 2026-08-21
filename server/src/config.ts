@@ -143,6 +143,16 @@ export const CONFIG = {
   // Guild Title: a short custom epithet shown under the guild's name.
   TITLE_COST: Number(process.env.TITLE_COST ?? 15),
   TITLE_MAX_LENGTH: Number(process.env.TITLE_MAX_LENGTH ?? 28),
+
+  // Testing/debug allowlist: any guild led by one of these usernames
+  // (case-insensitive) never spends silver and never runs out of banked
+  // tiles - see GameEngine.isGodMode. Not meant for normal players; keep
+  // this list short and override it via env var rather than adding names
+  // in code if it ever needs to grow.
+  GOD_MODE_USERNAMES: (process.env.GOD_MODE_USERNAMES ?? "Pizza")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
 };
 
 // Reserved chat channel id for the realm-wide chat, open to everyone

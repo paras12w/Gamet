@@ -123,6 +123,7 @@ export function GridView({
   }, [zoom]);
   const viewportRef = useRef<HTMLDivElement>(null);
   const gridInnerRef = useRef<HTMLDivElement>(null);
+  const gridOverlayRef = useRef<HTMLDivElement>(null);
   const dragState = useRef<{ x: number; y: number; panX: number; panY: number; dragged: boolean } | null>(null);
   const activePointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDist = useRef<number | null>(null);
@@ -193,9 +194,24 @@ export function GridView({
   // also where trimming pays off most.
   const LOD_ZOOM_THRESHOLD = 1;
   function applyTransform() {
+    const transform = `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
     if (gridInnerRef.current) {
-      gridInnerRef.current.style.transform = `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
+      gridInnerRef.current.style.transform = transform;
       gridInnerRef.current.classList.toggle("grid-view--far", zoomRef.current <= LOD_ZOOM_THRESHOLD);
+    }
+    // The eligible-tile overlay (grid-view-overlay) is a separate element
+    // from .grid-view on purpose (see its own comment below), but that means
+    // it needs this same live transform applied to it explicitly - it isn't
+    // a descendant of gridInnerRef, so it never inherits this write. Missing
+    // this is exactly what let it drift out of sync with the real board
+    // during a drag/pinch: the overlay only picked up a fresh transform on
+    // whatever React re-render happened to fire next (a zoom-state sync,
+    // a new snapshot), not on every pan frame, so it would visually freeze
+    // in place while the board moved underneath it - eligible tiles then
+    // read as being "in the wrong spot" relative to your own territory
+    // after any pan.
+    if (gridOverlayRef.current) {
+      gridOverlayRef.current.style.transform = transform;
     }
   }
 
@@ -646,6 +662,7 @@ export function GridView({
           list). Only mounted while it actually has something to show. */}
       {placementMode && (
         <div
+          ref={gridOverlayRef}
           className="grid-view-overlay"
           style={{
             gridTemplateColumns: `repeat(${snapshot.gridSize}, minmax(0, 1fr))`,

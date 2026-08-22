@@ -590,7 +590,7 @@ export class GameEngine {
     return { ok: true };
   }
 
-  // ---------- guild wagers (in-game gold only, not real currency) ----------
+  // ---------- guild wagers (in-game silver only, not real currency) ----------
 
   proposeWager(guildId: string, leaderSecret: string, targetGuildId: string, amount: number): { ok: true } | { ok: false; error: string } {
     const guild = this.guilds.get(guildId);
@@ -599,15 +599,15 @@ export class GameEngine {
     if (guild.leaderSecret !== leaderSecret) return { ok: false, error: "Only the guild leader can propose a wager" };
     if (!target || !target.alive) return { ok: false, error: "Target guild not found" };
     if (target.id === guild.id) return { ok: false, error: "A guild cannot wager against itself" };
-    if (!Number.isInteger(amount) || amount <= 0) return { ok: false, error: "Wager amount must be a positive whole number of gold" };
-    if (!this.isGodMode(guild) && amount > guild.tokens) return { ok: false, error: "You don't have that much gold" };
+    if (!Number.isInteger(amount) || amount <= 0) return { ok: false, error: "Wager amount must be a positive whole number of silver" };
+    if (!this.isGodMode(guild) && amount > guild.tokens) return { ok: false, error: "You don't have that much silver" };
     const existing = this.wagers.some(
       (w) => w.status === "pending" && ((w.fromGuild === guild.id && w.toGuild === target.id) || (w.fromGuild === target.id && w.toGuild === guild.id))
     );
     if (existing) return { ok: false, error: "There is already a pending wager between these guilds" };
     this.wagers.push({ id: randomUUID(), fromGuild: guild.id, toGuild: target.id, amount, status: "pending", settleRound: null });
-    this.postSystemMessage(guild.id, `🪙 We have challenged ${target.name} to a ${amount}-gold wager on this round's calls.`);
-    this.postSystemMessage(target.id, `🪙 ${guild.name} has challenged us to a ${amount}-gold wager on this round's calls. Respond in the Wagers tab.`);
+    this.postSystemMessage(guild.id, `🪙 We have challenged ${target.name} to a ${amount}-silver wager on this round's calls.`);
+    this.postSystemMessage(target.id, `🪙 ${guild.name} has challenged us to a ${amount}-silver wager on this round's calls. Respond in the Wagers tab.`);
     this.emitUpdate();
     return { ok: true };
   }
@@ -621,11 +621,11 @@ export class GameEngine {
     const from = this.guilds.get(wager.fromGuild);
     if (!from) return { ok: false, error: "Challenger no longer exists" };
     if (accept) {
-      if (!this.isGodMode(guild) && guild.tokens < wager.amount) return { ok: false, error: "You don't have enough gold to cover this wager" };
+      if (!this.isGodMode(guild) && guild.tokens < wager.amount) return { ok: false, error: "You don't have enough silver to cover this wager" };
       wager.status = "accepted";
       wager.settleRound = this.roundNumber;
-      this.postSystemMessage(guild.id, `🪙 Wager accepted - ${wager.amount} gold rides on this round's calls against ${from.name}.`);
-      this.postSystemMessage(from.id, `🪙 ${guild.name} accepted our wager - ${wager.amount} gold rides on this round's calls.`);
+      this.postSystemMessage(guild.id, `🪙 Wager accepted - ${wager.amount} silver rides on this round's calls against ${from.name}.`);
+      this.postSystemMessage(from.id, `🪙 ${guild.name} accepted our wager - ${wager.amount} silver rides on this round's calls.`);
     } else {
       this.wagers = this.wagers.filter((w) => w.id !== wagerId);
       this.postSystemMessage(guild.id, `🪙 We declined ${from.name}'s wager.`);
@@ -706,8 +706,8 @@ export class GameEngine {
       }
       winner.tokens += amount;
       updateGuildTokens(winner.id, winner.tokens);
-      this.postSystemMessage(winner.id, `🪙 We won the wager against ${loser.name} - ${amount} gold claimed!`);
-      this.postSystemMessage(loser.id, `🪙 We lost the wager against ${winner.name} - ${amount} gold paid out.`);
+      this.postSystemMessage(winner.id, `🪙 We won the wager against ${loser.name} - ${amount} silver claimed!`);
+      this.postSystemMessage(loser.id, `🪙 We lost the wager against ${winner.name} - ${amount} silver paid out.`);
       this.awardAchievement(winner, "first_wager_won");
     }
     this.wagers = remaining;

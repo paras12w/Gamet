@@ -339,6 +339,13 @@ h1, h2, h3 {
 
 .grid-view {
   display: grid;
+  /* Every pan/zoom calculation in GridView.tsx (drag, pinch, wheel-zoom, and
+     the placement-mode auto-center) assumes `translate() scale()` scales
+     from this element's own top-left corner - CSS defaults transform-origin
+     to the element's CENTER, which silently threw every one of those
+     calculations off by a constant offset tied to zoom level. Pinning it to
+     0 0 makes the code's actual behavior match what it's always assumed. */
+  transform-origin: 0 0;
   /* No `gap` here on purpose: with 50 columns/rows, a real grid gap adds a
      second, independently-rounded track dimension for the browser to
      distribute pixels across on top of the (already imperfect) 1fr column
@@ -476,6 +483,10 @@ h1, h2, h3 {
   border-radius: 2px;
   pointer-events: none;
   z-index: 5;
+  /* Must match .grid-view's transform-origin exactly - it receives the same
+     translate()/scale() string every frame (see applyTransform in
+     GridView.tsx) and needs to land on identical screen pixels. */
+  transform-origin: 0 0;
 }
 
 /* A single element spanning the whole grid instead of a `filter` applied to

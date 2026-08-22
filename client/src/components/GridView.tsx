@@ -274,13 +274,31 @@ export function GridView({
    * place" never depends on the player having already scrolled/zoomed to
    * the right spot on a huge board (see the placementMode effect below). */
   function centerOnCell(cx: number, cy: number) {
-    const rect = viewportRectRef.current;
-    if (!rect || rect.width === 0 || rect.height === 0) return;
+    const viewportEl = viewportRef.current;
+    const gridEl = gridInnerRef.current;
+    if (!viewportEl || !gridEl) return;
+    const cellEl = gridEl.querySelector<HTMLDivElement>(`[data-cell-key="${cx},${cy}"]`);
+    if (!cellEl) return;
+    // Apply the new zoom FIRST (keeping the current pan), then measure the
+    // target cell's actual on-screen position at that zoom and shift by
+    // exactly the delta needed to bring it to the viewport's center. This
+    // deliberately avoids re-deriving the cell's position from a formula
+    // (gridSize, viewport width, assumed content dimensions, borders) -
+    // those all quietly disagreed with each other (the board's own border,
+    // and the "choose an open field" banner resizing the viewport in the
+    // same tick this runs, each threw an offset-based calculation off by a
+    // different amount). Measuring the real element directly is correct
+    // regardless of any of that.
     const z = clampZoom(Math.max(zoomRef.current, 2));
-    const cellCenterX = ((cx + 0.5) / snapshot.gridSize) * rect.width;
-    const cellCenterY = ((cy + 0.5) / snapshot.gridSize) * rect.height;
     zoomRef.current = z;
-    panRef.current = clampPan({ x: rect.width / 2 - cellCenterX * z, y: rect.height / 2 - cellCenterY * z }, z);
+    applyTransform();
+    const viewportRect = viewportEl.getBoundingClientRect();
+    const cellRect = cellEl.getBoundingClientRect();
+    if (viewportRect.width === 0 || viewportRect.height === 0) return;
+    viewportRectRef.current = viewportRect;
+    const deltaX = viewportRect.x + viewportRect.width / 2 - (cellRect.x + cellRect.width / 2);
+    const deltaY = viewportRect.y + viewportRect.height / 2 - (cellRect.y + cellRect.height / 2);
+    panRef.current = clampPan({ x: panRef.current.x + deltaX, y: panRef.current.y + deltaY }, z);
     applyTransform();
     setZoom(z);
   }
@@ -467,6 +485,7 @@ export function GridView({
       return (
         <div
           key={key}
+          data-cell-key={key}
           className={[
             "grid-cell",
             isKeep ? "grid-cell--castle" : "",

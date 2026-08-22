@@ -15,6 +15,7 @@ import {
   RoadTile,
   RockIcon,
   RuinsIcon,
+  SuperCastleIcon,
   TreeIcon,
   VaultIcon,
   WatchtowerIcon,
@@ -41,6 +42,7 @@ const RESOURCE_LABEL: Record<ResourceKind, string> = {
   bandit_camp: "Bandit Camp",
   ruins: "Ancient Ruins",
   watchtower: "Watchtower",
+  super_castle: "The Sovereign's Seat",
 };
 
 const RESOURCE_DESCRIPTION: Record<ResourceKind, string> = {
@@ -54,6 +56,7 @@ const RESOURCE_DESCRIPTION: Record<ResourceKind, string> = {
   bandit_camp: "A bandit warband camps here, raiding whoever's closest until someone runs them off.",
   ruins: "Half-buried ruins - a single grab for lost treasure, then just quiet dirt.",
   watchtower: "A tall lookout with a lit beacon, watching every border it touches.",
+  super_castle: "A grand fortress at the very heart of the realm, said to double the fortunes of whoever holds it.",
 };
 
 const RESOURCE_BUFF: Record<ResourceKind, string> = {
@@ -67,9 +70,11 @@ const RESOURCE_BUFF: Record<ResourceKind, string> = {
   bandit_camp: "Raids silver from the nearest guild every other round until someone captures it.",
   ruins: "Pays a one-time lump of silver to whoever claims it, then reverts to plain empty land.",
   watchtower: "Reveals the locked-in call of any rival guild you're currently bordering — free, no scouting cost.",
+  super_castle: "Doubles every other keep, mine, vault, foundry, refinery, and exchange bonus you hold, for as long as you hold it.",
 };
 
-function ResourceIcon({ kind, owner, size }: { kind: ResourceKind; owner: { color: string } | null; size: number }) {
+function ResourceIcon({ kind, owner, size }: { kind: ResourceKind; owner: { color: string } | null; size: number | string }) {
+  if (kind === "super_castle") return <SuperCastleIcon color={owner?.color} size={size} />;
   if (owner) return <CastleIcon color={owner.color} size={size} />;
   if (kind === "lumber") return <LumberCampIcon size={size} />;
   if (kind === "mine") return <MineIcon size={size} />;
@@ -263,6 +268,23 @@ export function GridView({
     setZoom(1);
   }
 
+  /** Pans (and zooms in at least a little, if not already) so cell (cx, cy)
+   * lands dead center in the viewport - used to jump straight to the
+   * eligible-tile cluster the moment placement mode opens, so "where can I
+   * place" never depends on the player having already scrolled/zoomed to
+   * the right spot on a huge board (see the placementMode effect below). */
+  function centerOnCell(cx: number, cy: number) {
+    const rect = viewportRectRef.current;
+    if (!rect || rect.width === 0 || rect.height === 0) return;
+    const z = clampZoom(Math.max(zoomRef.current, 2));
+    const cellCenterX = ((cx + 0.5) / snapshot.gridSize) * rect.width;
+    const cellCenterY = ((cy + 0.5) / snapshot.gridSize) * rect.height;
+    zoomRef.current = z;
+    panRef.current = clampPan({ x: rect.width / 2 - cellCenterX * z, y: rect.height / 2 - cellCenterY * z }, z);
+    applyTransform();
+    setZoom(z);
+  }
+
   function dist(a: { x: number; y: number }, b: { x: number; y: number }): number {
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
@@ -399,6 +421,14 @@ export function GridView({
       const isHq = cell.type === "hq" && !!owner;
       const isKeep = cell.type === "castle";
       const kind: ResourceKind = cell.resourceKind ?? "keep";
+      // A grown 2x2 keep-flavored castle or the 3x3 super castle shares one
+      // structureAnchor key across every cell in its block - only the anchor
+      // cell renders the (bigger) icon and mine/rival border, spanning the
+      // whole footprint, the same trick .hq-castle-wrap already uses for a
+      // guild's own 2x2 HQ. An ordinary 1x1 castle has no structureAnchor at
+      // all, so it's unaffected by any of this.
+      const isStructureMember = !!cell.structureAnchor;
+      const isStructureAnchor = isStructureMember && cell.structureAnchor === key;
 
       const roll = hash(cell.x, cell.y);
       const isBare = !!cell.owner || cell.type !== "empty" || !!cell.river;
@@ -450,8 +480,8 @@ export function GridView({
             // mature territory that's a LOT of white/black-bordered squares,
             // which is what read as "the roads have borders now" once zoomed
             // in enough to actually see them.
-            isKeep && isMine ? "grid-cell--mine" : "",
-            isKeep && owner && !isMine ? "grid-cell--rival" : "",
+            isKeep && isMine && !isStructureMember ? "grid-cell--mine" : "",
+            isKeep && owner && !isMine && !isStructureMember ? "grid-cell--rival" : "",
             clickable ? "grid-cell--clickable" : "",
             isBridgeBuyable ? "grid-cell--eligible" : "",
             cell.river ? "grid-cell--river" : "",
@@ -498,7 +528,16 @@ export function GridView({
             </div>
           )}
 
-          {isKeep && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
+          {isStructureAnchor && (
+            <div
+              className={`structure-wrap ${owner ? (isMine ? "structure-wrap--mine" : "structure-wrap--rival") : ""}`}
+              style={{ width: `${(cell.structureSize ?? 2) * 100}%`, height: `${(cell.structureSize ?? 2) * 100}%` }}
+            >
+              <ResourceIcon kind={kind} owner={owner ?? null} size="60%" />
+            </div>
+          )}
+
+          {isKeep && !isStructureMember && <ResourceIcon kind={kind} owner={owner ?? null} size={18} />}
         </div>
       );
     });
@@ -546,6 +585,21 @@ export function GridView({
     }
     return result;
   }, [placementMode, myGuildId, guildsById, cellsByKey]);
+
+  // Jump straight to wherever the eligible-tile cluster actually is the
+  // moment placement mode opens - a guild's territory can grow into more
+  // than one detached patch (e.g. absorbing a defeated rival's lands via
+  // takeover), so "next to your territory" isn't always next to your HQ.
+  // Deliberately depends only on placementMode (not eligibleCells itself),
+  // so this fires once on entry and never re-centers out from under the
+  // player while they're already placing.
+  useEffect(() => {
+    if (!placementMode || eligibleCells.length === 0) return;
+    const avgX = eligibleCells.reduce((sum, c) => sum + c.x, 0) / eligibleCells.length;
+    const avgY = eligibleCells.reduce((sum, c) => sum + c.y, 0) / eligibleCells.length;
+    centerOnCell(avgX, avgY);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placementMode]);
 
   const selectedCell = selectedKeep ? cellsByKey.get(selectedKeep) : null;
   const selectedOwner = selectedCell?.owner ? guildsById.get(selectedCell.owner) : null;

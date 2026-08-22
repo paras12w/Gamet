@@ -14,7 +14,8 @@ export type ResourceKind =
   | "refinery" // Energy sector structure: doubles the Energy silver bonus while held
   | "bandit_camp" // hostile while neutral - raids the nearest guild's silver until captured
   | "ruins" // one-time silver payout on capture, then reverts to empty land
-  | "watchtower"; // free automatic scouting of guilds you're bordering (in a battle with)
+  | "watchtower" // free automatic scouting of guilds you're bordering (in a battle with)
+  | "super_castle"; // the single 3x3 Sovereign's Seat at the map's center - doubles every other structure bonus while held
 
 export interface Cell {
   x: number;
@@ -24,6 +25,13 @@ export interface Cell {
   resourceKind?: ResourceKind; // only set when type === "castle"
   river?: boolean; // unclaimable water tile; never set alongside resourceKind
   riverFlowsAlongX?: boolean; // rendering hint - true if this river's main walk steps along x
+  // Only set on a cell belonging to a multi-cell neutral structure (a grown
+  // 2x2 keep/foundry/vault/refinery, or the 3x3 super castle) - every cell in
+  // the block shares the same anchor key (its top-left corner), which is how
+  // the whole group is captured/rendered/transferred atomically instead of
+  // per-cell. Undefined for an ordinary 1x1 castle or any non-castle cell.
+  structureAnchor?: CellKey;
+  structureSize?: number; // side length of the block (2 or 3); only set alongside structureAnchor
 }
 
 export interface ChatMessage {
@@ -172,7 +180,7 @@ export interface Wager {
   id: string;
   fromGuild: string;
   toGuild: string;
-  amount: number; // in-game gold (tokens) staked by each side - not real currency
+  amount: number; // in-game silver (tokens) staked by each side - not real currency
   status: "pending" | "accepted";
   settleRound: number | null; // the round number this wager resolves at, set on accept
 }

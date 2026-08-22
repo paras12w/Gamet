@@ -46,6 +46,21 @@ export function blockInBounds(x: number, y: number): boolean {
   return inBounds(x, y) && inBounds(x + 1, y + 1);
 }
 
+/** The cell keys of a `size`x`size` block whose top-left corner is (x, y). */
+export function nxnCells(x: number, y: number, size: number): CellKey[] {
+  const out: CellKey[] = [];
+  for (let dx = 0; dx < size; dx++) {
+    for (let dy = 0; dy < size; dy++) {
+      out.push(cellKey(x + dx, y + dy));
+    }
+  }
+  return out;
+}
+
+export function nxnInBounds(x: number, y: number, size: number): boolean {
+  return inBounds(x, y) && inBounds(x + size - 1, y + size - 1);
+}
+
 /** Chebyshev distance from a cell to the grid's center point. */
 function distanceFromCenter(x: number, y: number): number {
   const c = (CONFIG.GRID_SIZE - 1) / 2;

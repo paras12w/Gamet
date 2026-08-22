@@ -13,7 +13,8 @@ export type ResourceKind =
   | "refinery"
   | "bandit_camp"
   | "ruins"
-  | "watchtower";
+  | "watchtower"
+  | "super_castle";
 
 export interface Cell {
   x: number;
@@ -23,6 +24,11 @@ export interface Cell {
   resourceKind?: ResourceKind;
   river?: boolean;
   riverFlowsAlongX?: boolean;
+  // Only set on a cell belonging to a multi-cell neutral structure (a grown
+  // 2x2 keep-flavored castle, or the 3x3 super castle) - every cell in the
+  // block shares the same anchor key (its top-left corner).
+  structureAnchor?: string;
+  structureSize?: number;
 }
 
 export interface Battle {

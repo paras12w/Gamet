@@ -56,6 +56,7 @@ const STRUCTURE_INFO: Record<string, { icon: string; label: string; effect: stri
   foundry: { icon: "🏭", label: "Foundry", effect: "doubles your Tech tile bonus" },
   vault: { icon: "🏦", label: "Vault", effect: "passive silver interest each buff tick" },
   refinery: { icon: "⚗️", label: "Refinery", effect: "doubles your Energy silver bonus" },
+  super_castle: { icon: "👑", label: "Sovereign's Seat", effect: "doubles every other keep/mine/vault/foundry/refinery/exchange bonus you hold" },
 };
 
 function formatFoundedAgo(createdAt: number): string {
@@ -777,7 +778,13 @@ export function GuildMenu({
           )}
 
           {tab === "forecast" && (() => {
-            const heldStructures = snapshot.cells.filter((c) => c.owner === guild.id && c.resourceKind && STRUCTURE_INFO[c.resourceKind]);
+            // A grown 2x2/3x3 structure's cells all share the same
+            // resourceKind and owner - only count its anchor cell (or the
+            // cell itself, for an ordinary 1x1 castle with no anchor at
+            // all), so one held structure shows one badge, not one per cell.
+            const heldStructures = snapshot.cells.filter(
+              (c) => c.owner === guild.id && c.resourceKind && STRUCTURE_INFO[c.resourceKind] && (!c.structureAnchor || c.structureAnchor === `${c.x},${c.y}`)
+            );
             const specialistSectors = KINGDOM_SECTORS.filter((k) => (guild.sectorWins[k] ?? 0) >= SPECIALIST_THRESHOLD);
             const councilSeats = KINGDOM_SECTORS.filter((k) => snapshot.sectorCouncil[k] === guild.id);
             const hasBuffs = heldStructures.length > 0 || specialistSectors.length > 0 || councilSeats.length > 0;

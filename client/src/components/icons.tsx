@@ -81,7 +81,7 @@ export function CastleIcon({ color, size = 20 }: { color: string; size?: number 
   );
 }
 
-export function NeutralCastleIcon({ size = 20 }: { size?: number }) {
+export function NeutralCastleIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <rect x="3" y="11" width="18" height="10" fill="#7d7666" stroke="#4a453a" strokeWidth="0.5" />
@@ -94,7 +94,31 @@ export function NeutralCastleIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-export function LumberCampIcon({ size = 20 }: { size?: number }) {
+/** The one-of-a-kind Sovereign's Seat at the map's exact center - a grander
+ * five-tower silhouette (vs. the ordinary three-tower keep) with a taller
+ * gold-capped central spire and banner, so it reads as a landmark even at a
+ * glance across a huge zoomed-out board. Recolored to the holder's flag
+ * color the same way CastleIcon is, via ResourceIcon in GridView.tsx. */
+export function SuperCastleIcon({ color, size = 20 }: { color?: string; size?: number | string }) {
+  const fill = color ?? "#7d7666";
+  const stroke = color ? "#000" : "#4a453a";
+  const strokeOpacity = color ? 0.25 : 1;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="2.5" y="12" width="19" height="9.5" fill={fill} stroke={stroke} strokeOpacity={strokeOpacity} strokeWidth="0.5" />
+      <rect x="2.5" y="8.2" width="2.8" height="4" fill={fill} />
+      <rect x="8.2" y="8.2" width="2.8" height="4" fill={fill} />
+      <rect x="13.7" y="6.5" width="3.2" height="5.7" fill={fill} />
+      <rect x="19.2" y="8.2" width="2.8" height="4" fill={fill} />
+      <rect x="10.4" y="16" width="4.2" height="5.5" fill="#1c130a" opacity="0.55" />
+      <circle cx="15.3" cy="6.5" r="1.1" fill="#d4a843" stroke={stroke} strokeOpacity={strokeOpacity} strokeWidth="0.4" />
+      <line x1="15.3" y1="6.5" x2="15.3" y2="2" stroke="#5c4a2e" strokeWidth="1" />
+      <path d="M15.3 2 L20.3 4.2 L15.3 6.4 Z" fill="#a4302a" />
+    </svg>
+  );
+}
+
+export function LumberCampIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="20.5" rx="9" ry="1.4" fill="#000" opacity="0.18" />
@@ -110,7 +134,7 @@ export function LumberCampIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-export function MineIcon({ size = 20 }: { size?: number }) {
+export function MineIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
@@ -126,7 +150,7 @@ export function MineIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-export function ExchangeIcon({ size = 20 }: { size?: number }) {
+export function ExchangeIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
@@ -148,7 +172,7 @@ export function ExchangeIcon({ size = 20 }: { size?: number }) {
 
 /** Tech sector structure: a forge with a glowing gear, doubles the Tech
  * tile bonus while held. */
-export function FoundryIcon({ size = 20 }: { size?: number }) {
+export function FoundryIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
@@ -167,7 +191,7 @@ export function FoundryIcon({ size = 20 }: { size?: number }) {
 
 /** Finance sector structure: a strongbox, grants passive silver interest
  * while held. */
-export function VaultIcon({ size = 20 }: { size?: number }) {
+export function VaultIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
@@ -182,7 +206,7 @@ export function VaultIcon({ size = 20 }: { size?: number }) {
 
 /** Energy sector structure: a drum + pipe rig, doubles the Energy silver
  * bonus while held. */
-export function RefineryIcon({ size = 20 }: { size?: number }) {
+export function RefineryIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.18" />
@@ -198,7 +222,7 @@ export function RefineryIcon({ size = 20 }: { size?: number }) {
 }
 
 /** Hostile neutral spot: raids the nearest guild's silver until captured. */
-export function BanditCampIcon({ size = 20 }: { size?: number }) {
+export function BanditCampIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="21" rx="9" ry="1.4" fill="#000" opacity="0.2" />
@@ -214,7 +238,7 @@ export function BanditCampIcon({ size = 20 }: { size?: number }) {
 
 /** One-time neutral spot: pays a lump silver sum on capture, then reverts
  * to plain empty land. */
-export function RuinsIcon({ size = 20 }: { size?: number }) {
+export function RuinsIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="20.5" rx="9" ry="1.4" fill="#000" opacity="0.18" />
@@ -229,7 +253,7 @@ export function RuinsIcon({ size = 20 }: { size?: number }) {
 
 /** Neutral spot: free automatic scouting of any rival guild you're
  * currently bordering. */
-export function WatchtowerIcon({ size = 20 }: { size?: number }) {
+export function WatchtowerIcon({ size = 20 }: { size?: number | string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <ellipse cx="12" cy="21" rx="7" ry="1.3" fill="#000" opacity="0.18" />

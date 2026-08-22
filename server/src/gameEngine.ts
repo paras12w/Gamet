@@ -9,6 +9,8 @@ import {
   inBounds,
   isNearCenter,
   neighborsOf,
+  nxnCells,
+  nxnInBounds,
   parseKey,
   scatterNeutralPositions,
   type RiverCell,
@@ -83,6 +85,17 @@ const RESOURCE_WEIGHTS: [ResourceKind, number][] = [
 ];
 const RESOURCE_WEIGHT_TOTAL = RESOURCE_WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
 
+// These "keep-flavored" kinds grow into a 2x2 block (when there's room for
+// one - see initGrid) instead of staying a single cell, making them a real
+// fight over four tiles instead of one. The other kinds (lumber, mine,
+// exchange, bandit camp, ruins, watchtower) stay single-cell.
+const GROWABLE_STRUCTURE_KINDS = new Set<ResourceKind>(["keep", "foundry", "vault", "refinery"]);
+
+// Side length of the one-of-a-kind Sovereign's Seat super castle, always
+// placed dead center on the map (see initGrid) - the same center zone guild
+// HQs are excluded from, so it always lands on contested neutral ground.
+const SUPER_CASTLE_SIZE = 3;
+
 function randomToken(): string {
   return randomBytes(24).toString("hex");
 }
@@ -109,6 +122,12 @@ export class GameEngine {
   private guilds = new Map<string, Guild>();
   private battles: Battle[] = [];
   private castles: CellKey[] = [];
+  // Anchor key -> every cell key in that multi-cell structure (including the
+  // anchor itself). Only holds entries for grown 2x2 keep-flavored castles
+  // and the one 3x3 super castle - an ordinary 1x1 castle has no entry here,
+  // since claimCell() only needs this to know a whole block moves together.
+  private structureGroups = new Map<CellKey, CellKey[]>();
+  private superCastleAnchor: CellKey = cellKey(0, 0);
   private rivers = new Map<CellKey, RiverCell>();
   roundNumber = 1;
   sessionNumber = 1;
@@ -284,22 +303,68 @@ export class GameEngine {
 
   private initGrid(): void {
     this.grid.clear();
+    this.structureGroups.clear();
     this.rivers = generateRivers(CONFIG.RIVER_COUNT);
-    this.castles = scatterNeutralPositions(NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING, new Set(this.rivers.keys()));
-    const castleSet = new Set(this.castles);
+
+    // assignment: every cell key belonging to a castle (single or multi-cell)
+    // maps to the kind it'll render/hold, plus the anchor/size of whatever
+    // block it's part of (size 1 for an ordinary single-cell castle).
+    const assignment = new Map<CellKey, { kind: ResourceKind; anchor: CellKey; size: number }>();
+    const reserved = new Set<CellKey>(this.rivers.keys());
+
+    // The one-of-a-kind Sovereign's Seat: a 3x3 block dead center on the
+    // map, reserved before anything else so the random scatter below never
+    // overlaps it. Center placement mirrors isNearCenter/centerExclusionRadius,
+    // which already keeps guild HQs (and so player-founded territory) out of
+    // this exact zone - it's always genuinely contested neutral ground.
+    const superOrigin = Math.floor((CONFIG.GRID_SIZE - SUPER_CASTLE_SIZE) / 2);
+    const superAnchor = cellKey(superOrigin, superOrigin);
+    this.superCastleAnchor = superAnchor;
+    const superKeys = nxnCells(superOrigin, superOrigin, SUPER_CASTLE_SIZE);
+    for (const key of superKeys) {
+      assignment.set(key, { kind: "super_castle", anchor: superAnchor, size: SUPER_CASTLE_SIZE });
+      reserved.add(key);
+    }
+    this.structureGroups.set(superAnchor, superKeys);
+
+    this.castles = scatterNeutralPositions(NEUTRAL_CASTLE_COUNT, NEUTRAL_MIN_SPACING, reserved);
+    for (const anchor of this.castles) {
+      const kind = randomResourceKind();
+      if (GROWABLE_STRUCTURE_KINDS.has(kind)) {
+        const { x, y } = parseKey(anchor);
+        const block = blockCells(x, y);
+        const canGrow = blockInBounds(x, y) && block.every((k) => !reserved.has(k) && !assignment.has(k));
+        if (canGrow) {
+          for (const key of block) {
+            assignment.set(key, { kind, anchor, size: 2 });
+            reserved.add(key);
+          }
+          this.structureGroups.set(anchor, block);
+          continue;
+        }
+      }
+      assignment.set(anchor, { kind, anchor, size: 1 });
+      reserved.add(anchor);
+    }
+
     for (let x = 0; x < CONFIG.GRID_SIZE; x++) {
       for (let y = 0; y < CONFIG.GRID_SIZE; y++) {
         const key = cellKey(x, y);
-        const isCastle = castleSet.has(key);
+        const cast = assignment.get(key);
         const riverCell = this.rivers.get(key);
         this.grid.set(key, {
           x,
           y,
-          type: isCastle ? "castle" : "empty",
+          type: cast ? "castle" : "empty",
           owner: null,
-          resourceKind: isCastle ? randomResourceKind() : undefined,
-          river: !!riverCell || undefined,
-          riverFlowsAlongX: riverCell?.flowsAlongX || undefined,
+          resourceKind: cast?.kind,
+          structureAnchor: cast && cast.size > 1 ? cast.anchor : undefined,
+          structureSize: cast && cast.size > 1 ? cast.size : undefined,
+          // A castle assignment always wins over whatever river the RNG
+          // happened to carve underneath it (river generation runs first,
+          // independent of castle placement) - it's just not a river tile.
+          river: cast ? undefined : !!riverCell || undefined,
+          riverFlowsAlongX: cast ? undefined : riverCell?.flowsAlongX || undefined,
         });
       }
     }
@@ -760,9 +825,18 @@ export class GameEngine {
   /** Assigns ownership of a newly-claimed cell to `guild`, and applies the
    * one-time Ruins payout (then demotes it back to plain empty land) if
    * that's what was just claimed. Shared by placeExpansion and placeTile -
-   * the two ways a neutral cell changes hands outside of battle. */
+   * the two ways a neutral cell changes hands outside of battle. Claiming
+   * any single cell of a multi-cell structure (a grown 2x2 keep-flavored
+   * castle, or the 3x3 super castle) claims the whole block at once - a
+   * structure can never end up split between two owners. */
   private claimCell(guild: Guild, cell: Cell): void {
-    cell.owner = guild.id;
+    const group = cell.structureAnchor ? this.structureGroups.get(cell.structureAnchor) : undefined;
+    for (const key of group ?? [cellKey(cell.x, cell.y)]) {
+      const member = this.grid.get(key);
+      if (!member) continue;
+      member.owner = guild.id;
+      guild.squares.add(key);
+    }
     if (cell.resourceKind === "ruins") {
       cell.type = "empty";
       cell.resourceKind = undefined;
@@ -806,6 +880,13 @@ export class GameEngine {
     });
   }
 
+  /** Does `guild` currently hold the map's one 3x3 super castle? Checked
+   * directly against its fixed anchor cell rather than via this.castles,
+   * which deliberately excludes it (see initGrid). */
+  private ownsSuperCastle(guild: Guild): boolean {
+    return this.grid.get(this.superCastleAnchor)?.owner === guild.id;
+  }
+
   private applySectorBonus(guild: Guild): { tileBonus: number; silverBonus: number; sectorKey: string | undefined } {
     const sector = guild.proposal ? sectorForTicker(guild.proposal.ticker) : null;
     if (!sector) return { tileBonus: 0, silverBonus: 0, sectorKey: undefined };
@@ -820,6 +901,13 @@ export class GameEngine {
     // Energy silver bonus, giving a concrete reason to fight over them.
     if (sector.key === "tech" && tileBonus > 0 && this.ownsCastleKind(guild, "foundry")) tileBonus *= 2;
     if (sector.key === "energy" && silverBonus > 0 && this.ownsCastleKind(guild, "refinery")) silverBonus *= 2;
+    // The super castle doubles every other structure's bonus on top of
+    // whatever it's already amplified to - its own reason to be worth
+    // fighting over beyond just another Foundry/Refinery.
+    if (this.ownsSuperCastle(guild)) {
+      if (tileBonus > 0) tileBonus *= 2;
+      if (silverBonus > 0) silverBonus *= 2;
+    }
 
     // Specialization: enough proven wins in a kingdom sector earns a
     // permanent add-on to that sector's own bonus, independent of any
@@ -1025,7 +1113,22 @@ export class GameEngine {
       loser.squares.delete(loserCell);
       winner.squares.add(loserCell);
       const capturedCell = this.grid.get(loserCell);
-      if (capturedCell) capturedCell.owner = winner.id;
+      if (capturedCell) {
+        capturedCell.owner = winner.id;
+        // A duel over one cell of a multi-cell structure (a grown keep-
+        // flavored castle, or the super castle) hands over the WHOLE block,
+        // not just the contested cell - a structure is always owned as one
+        // atomic unit (see claimCell), so this keeps that invariant intact.
+        if (capturedCell.structureAnchor) {
+          for (const memberKey of this.structureGroups.get(capturedCell.structureAnchor) ?? []) {
+            if (memberKey === loserCell) continue;
+            loser.squares.delete(memberKey);
+            winner.squares.add(memberKey);
+            const member = this.grid.get(memberKey);
+            if (member) member.owner = winner.id;
+          }
+        }
+      }
 
       const winnerSector = this.applySectorBonus(winner);
       const winnerTileCount = tileCountFor(winner.id) + winnerSector.tileBonus;
@@ -1088,17 +1191,24 @@ export class GameEngine {
 
     if (this.roundNumber % CONFIG.CASTLE_BUFF_EVERY_N_ROUNDS === 0) {
       for (const guild of this.livingGuilds()) {
+        // The super castle has no buff tick of its own (it's deliberately
+        // excluded from this.castles, see initGrid) - instead, holding it
+        // doubles every OTHER castle's buff-tick payout below, the landmark
+        // "capstone" this guild's whole neutral-castle holdings build toward.
+        const hasSuperCastle = this.ownsSuperCastle(guild);
+        const multiplier = hasSuperCastle ? 2 : 1;
         const ownedCastles = this.castles.filter((c) => this.grid.get(c)?.owner === guild.id);
         for (const c of ownedCastles) {
           const cell = this.grid.get(c);
           const kind = cell?.resourceKind;
           let silverGain = 0;
           if (kind === "exchange") {
-            silverGain = CONFIG.EXCHANGE_SILVER_BUFF;
+            silverGain = CONFIG.EXCHANGE_SILVER_BUFF * multiplier;
           } else if (kind === "vault") {
-            silverGain = Math.max(CONFIG.VAULT_INTEREST_MIN, Math.floor(guild.tokens * CONFIG.VAULT_INTEREST_RATE));
+            silverGain = Math.max(CONFIG.VAULT_INTEREST_MIN, Math.floor(guild.tokens * CONFIG.VAULT_INTEREST_RATE)) * multiplier;
           } else {
             this.placeExpansion(guild);
+            if (hasSuperCastle) this.placeExpansion(guild);
           }
           if (cell && this.isRiverside(c)) silverGain += CONFIG.RIVERSIDE_SILVER_BONUS;
           if (silverGain > 0) {

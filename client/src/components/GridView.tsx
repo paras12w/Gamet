@@ -590,14 +590,31 @@ export function GridView({
   // moment placement mode opens - a guild's territory can grow into more
   // than one detached patch (e.g. absorbing a defeated rival's lands via
   // takeover), so "next to your territory" isn't always next to your HQ.
+  // Center on the single eligible cell CLOSEST to the guild's HQ, not the
+  // average of every eligible cell - averaging is wrong the moment the
+  // territory is split into more than one patch, since the midpoint between
+  // two separated clusters can land on empty ground touching neither one.
+  // Closest-to-HQ instead always lands on a real, reachable point, and it's
+  // the one most likely to still have recognizable owned territory in view.
   // Deliberately depends only on placementMode (not eligibleCells itself),
   // so this fires once on entry and never re-centers out from under the
   // player while they're already placing.
   useEffect(() => {
     if (!placementMode || eligibleCells.length === 0) return;
-    const avgX = eligibleCells.reduce((sum, c) => sum + c.x, 0) / eligibleCells.length;
-    const avgY = eligibleCells.reduce((sum, c) => sum + c.y, 0) / eligibleCells.length;
-    centerOnCell(avgX, avgY);
+    const myGuild = myGuildId ? guildsById.get(myGuildId) : null;
+    let target = eligibleCells[0];
+    if (myGuild?.hq) {
+      const [hx, hy] = myGuild.hq.split(",").map(Number);
+      let bestDist = Infinity;
+      for (const c of eligibleCells) {
+        const d = Math.abs(c.x - hx) + Math.abs(c.y - hy);
+        if (d < bestDist) {
+          bestDist = d;
+          target = c;
+        }
+      }
+    }
+    centerOnCell(target.x, target.y);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placementMode]);
 
